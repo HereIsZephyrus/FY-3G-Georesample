@@ -2,7 +2,7 @@
 
 ## 计算数据集空间直角坐标
 ### 1. 将地表大地坐标转换为空间直角坐标
-数据集中Geolocation组的ellipsoidBinOffset记录了地球椭球表面到脉冲中心的距离，Latitude中第一层记录各测量点地面经度，Longitude第一层记录各测量点地面纬度。记第 $i$ 条扫描带的第$j$个扫描角的数据下标为 $(i,j)$ 。
+数据集中Geolocation组的ellipsoidBinOffset记录了地球椭球表面到脉冲中心的距离，Latitude中第一层记录各测量点地面经度，Longitude第一层记录各测量点地面纬度。记第 $i$ 条扫描带的第 $j$ 个扫描角的数据下标为 $(i,j)$ 。
 对任意一点，记大地坐标为 $(B,L,H)$ 则其空间直角坐标系坐标为: 
 
 $$
@@ -122,12 +122,12 @@ $$
 f(s) = \frac{z}{\sqrt{w^2+z^2}} = s - \frac{z + e^2s}{\sqrt{w^2 + (z^2 + e^2s)^2}} + \frac{z}{\sqrt{w^2+z^2}} \tag{22}
 $$
 
-$s=0$ 时由式(8)可得 $\sin B=0$ ，因此可知 $f(0) = 0$ ,计算后得知当 $(w^2 +z^2)^{\frac 3 2} \neq e^2w^2$时$f'(0)\neq 0$ 。将其泰勒展开，由拉格朗日反演定理有: 
+$s=0$ 时由式(8)可得 $\sin B=0$ ，因此可知 $f(0) = 0$ ,计算后得知当 $(w^2 +z^2)^{\frac 3 2} \neq e^2w^2$ 时 $f'(0) \neq 0$ 。将其泰勒展开，由拉格朗日反演定理有: 
 
 $$
 \begin{cases}
-f(s) &= \sum_{n=1}^{\infin}\frac{f^{(n)}(0)}{n!}s^n = \sum_{n=1}^{\infin}a_n s^n \\
-s &=\sum_{n=1}^{\infin}b_n \left( \frac{z}{\sqrt{w^2+z^2}} \right)^n
+f(s) &= \sum_{n=1}^{\infty}\frac{f^{(n)}(0)}{n!}s^n = \sum_{n=1}^{\infty}a_n s^n \\
+s &=\sum_{n=1}^{\infty}b_n \left( \frac{z}{\sqrt{w^2+z^2}} \right)^n
 \end{cases}
 \tag{23}
 $$
@@ -148,15 +148,13 @@ $$
 其中: 
 
 $$
-\left\{
-\begin{aligned}
+\begin{cases}
 r &= \frac{R}{a} = \frac{\sqrt{X^2 + Y^2 + (1 - e^2)Z^2}}{a} \\
 t_1 &= \frac{\sqrt{(1 - e^2)}Z}{R - ae^2(X^2 + Y^2)/R^2} \\
 t_2 &= \frac{\sqrt{X^2 + Y^2}}{R - ae^2(X^2 + Y^2)/R^2} \\
 t_3 &= \frac{\sqrt{(1 - e^2)}Z}{R} \\
 t_4 &= \frac{\sqrt{X^2 + Y^2}}{R}
-\end{aligned}
-\right. \tag{25}
+\end{cases} \tag{25}
 $$
 
 在计算得到 $s$ 后，由式(8)和几何关系可得: 
