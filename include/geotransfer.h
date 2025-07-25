@@ -8,7 +8,7 @@
 #define WGS84_E (sqrt(WGS84_A * WGS84_A - WGS84_B * WGS84_B) / WGS84_A)
 #define M_PI 3.14159265358979323846
 
-typedef struct Coordinate{
+typedef struct{
     double x, y, z;
     double l, b, h;
 } Coordinate;
