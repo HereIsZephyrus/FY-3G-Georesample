@@ -1,20 +1,22 @@
 #include "interface.h"
 #include <H5Ipublic.h>
 #include <H5Tpublic.h>
+#include <H5public.h>
 #include <stdlib.h>
 #include <string.h>
+#include <omp.h>
 
-GridInfo* CreateGridInfo(unsigned int nx, unsigned int ny) {
+GridInfo* CreateGridInfo(unsigned int lineIndex, unsigned int angleIndex) {
     /**
     @brief Create GridInfo
-    @param nx: the number of columns
-    @param ny: the number of rows
+    @param lineIndex: the line index
+    @param angleIndex: the angle index
     @return the GridInfo pointer, NULL if failed
     */
     GridInfo* info = (GridInfo*)malloc(sizeof(GridInfo));
     if (info != NULL) {
-        info->nx = nx;
-        info->ny = ny;
+        info->lineIndex = lineIndex;
+        info->angleIndex = angleIndex;
         info->heightArray = (double*)malloc(SCAN_HEIGHT_COUNT * sizeof(double));
         info->measuredArray = (double*)malloc(SCAN_HEIGHT_COUNT * sizeof(double));
         if (!info->heightArray || !info->measuredArray) {
@@ -88,7 +90,7 @@ bool ReadHDF5(const char* filename){
 
     for (int bandIndex = 0; bandIndex < 2; bandIndex++){
         const char* bandName = bandNames[bandIndex];
-        if (!ReadBand(fileID, geolocationID, preID, bandName)){
+        if (!ReadBand(fileID, bandName, &globalAttribute)){
             fprintf(stderr, "Failed to read band: %s\n", bandName);
             return false;
         }
@@ -182,15 +184,125 @@ bool ReadGlobalAttribute(hid_t fileID, HDFGlobalAttribute* globalAttribute){
     return true;
 }
 
-bool ReadBand(hid_t fileID, hid_t geolocationID, hid_t preID, const char* bandName){
+hid_t GetDatasetID(hid_t fileID, const char* path){
+    hid_t datasetID = H5Dopen(fileID, path, H5P_DEFAULT);
+    if (datasetID < 0)
+        fprintf(stderr, "Failed to open dataset: %s\n", path);
+    return datasetID;
+}
+
+bool GetRequiredDatasetID(hid_t fileID, const char* bandName, HDFBandRequired* required){
+    required->elevationID = GetDatasetID(fileID, ConstructPath((const char*[]){GEOLOCATION_GROUP_NAME, bandName, "elevation"}, 3));
+    if (required->elevationID < 0){
+        fprintf(stderr, "Failed to open dataset: %s\n", "elevation");
+        return false;
+    }
+    required->latitudeID = GetDatasetID(fileID, ConstructPath((const char*[]){GEOLOCATION_GROUP_NAME, bandName, "Latitude"}, 3));
+    if (required->latitudeID < 0){
+        fprintf(stderr, "Failed to open dataset: %s\n", "Latitude");
+        return false;
+    }
+    required->longitudeID = GetDatasetID(fileID, ConstructPath((const char*[]){GEOLOCATION_GROUP_NAME, bandName, "Longitude"}, 3));
+    if (required->longitudeID < 0){
+        fprintf(stderr, "Failed to open dataset: %s\n", "Longitude");
+        return false;
+    }
+    required->groundHeightID = GetDatasetID(fileID, ConstructPath((const char*[]){GEOLOCATION_GROUP_NAME, bandName, "ellipsoidBinOffset"}, 3));
+    if (required->groundHeightID < 0){
+        fprintf(stderr, "Failed to open dataset: %s\n", "ellipsoidBinOffset");
+        return false;
+    }
+    required->zenithID = GetDatasetID(fileID, ConstructPath((const char*[]){GEOLOCATION_GROUP_NAME, bandName, "localZenithAngle"}, 3));
+    if (required->zenithID < 0){
+        fprintf(stderr, "Failed to open dataset: %s\n", "localZenithAngle");
+        return false;
+    }
+    required->valueID = GetDatasetID(fileID, ConstructPath((const char*[]){PRE_GROUP_NAME, bandName, "zFactorMeasured"}, 3));
+    if (required->valueID < 0){
+        fprintf(stderr, "Failed to open dataset: %s\n", "zFactorMeasured");
+        return false;
+    }
+    required->binClutterID = GetDatasetID(fileID, ConstructPath((const char*[]){PRE_GROUP_NAME, bandName, "binClutterFreeBottom"}, 3));
+    if (required->binClutterID < 0){
+        fprintf(stderr, "Failed to open dataset: %s\n", "binClutterFreeBottom");
+        return false;
+    }
+    return true;
+}
+
+bool ReadSingleScanLine(int lineIndex, const HDFBandRequired* required, GridInfo* infoLine){
+    /**
+    @brief Read single scan line
+    @param lineIndex: the line index
+    @param required: the required dataset ID
+    @param infoLine: the info line to store the data
+    @return true if successful, false otherwise
+    */
+    hsize_t offset2D[2] = {lineIndex, 0};
+    hsize_t offset3D[3] = {lineIndex, 0, 0};
+    hsize_t count2D[2] = {1, SCAN_ANGLE_COUNT};
+    hsize_t count3D[3] = {1, SCAN_ANGLE_COUNT, H5S_UNLIMITED};
+
+    herr_t status = H5Sselect_hyperslab(required->elevationID, H5S_SELECT_SET, offset2D, NULL, count2D, NULL);
+    hid_t memspaceID = H5Screate_simple(2, count2D, NULL);
+    hid_t dataspaceID = H5Dget_space(required->elevationID);
+    float* elevation = (float*)malloc(SCAN_ANGLE_COUNT * sizeof(float));
+    status = H5Dread(required->elevationID, H5T_NATIVE_FLOAT, memspaceID, dataspaceID, H5P_DEFAULT, elevation);
+    H5Sclose(dataspaceID);
+    H5Sclose(memspaceID);
+
+    if (status < 0){
+        fprintf(stderr, "Failed to select hyperslab\n");
+        return false;
+    }
+    status = H5Dread(required->elevationID, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, infoLine->heightArray);
+    if (status < 0){
+        fprintf(stderr, "Failed to read elevation\n");
+        return false;
+    }
+    status = H5Dread(required->latitudeID, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, infoLine->latitudeArray);
+    return true;
+}
+
+bool ReadBand(hid_t fileID, const char* bandName, HDFGlobalAttribute* globalAttribute){
     /**
     @brief Read band
     @param fileID: the file ID
-    @param geolocationID: the geolocation ID
-    @param preID: the pre ID
     @param bandName: the name of the band
+    @param globalAttribute: the global attribute
     @return true if successful, false otherwise
     */
+    HDFBandRequired required;
+    if (!GetRequiredDatasetID(fileID, bandName, &required)){
+        fprintf(stderr, "Failed to get all required dataset ID\n");
+        return false;
+    }
+    GridInfo **infoArray = (GridInfo**)malloc(globalAttribute->scanLineCount * sizeof(GridInfo*));
 
+    #pragma omp parallel for
+    {
+    for (int lineIndex = 0; lineIndex < globalAttribute->scanLineCount; lineIndex++){
+        GridInfo* infoLine = (GridInfo*)malloc(SCAN_ANGLE_COUNT * sizeof(GridInfo));
+        ReadSingleScanLine(lineIndex, &required, infoLine);
+        infoArray[lineIndex] = infoLine;
+    }
+    }
+
+    // free all resources
+    H5Dclose(required.elevationID);
+    H5Dclose(required.latitudeID);
+    H5Dclose(required.longitudeID);
+    H5Dclose(required.zenithID);
+    H5Dclose(required.heightID);
+    H5Dclose(required.groundHeightID);
+    H5Dclose(required.valueID);
+    H5Dclose(required.binClutterID);
+
+    for (int lineIndex = 0; lineIndex < globalAttribute->scanLineCount; lineIndex++){
+        for (int angleIndex = 0; angleIndex < SCAN_ANGLE_COUNT; angleIndex++)
+            DestroyGridInfo(&infoArray[lineIndex][angleIndex]);
+        DestroyGridInfo(infoArray[lineIndex]);
+    }
+    free(infoArray);
     return true;
 }

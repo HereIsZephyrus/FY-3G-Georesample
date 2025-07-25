@@ -7,11 +7,11 @@
 #define PRE_GROUP_NAME "PRE"
 
 typedef struct {
-    double groundL, groundB, groundH;
-    double airL, airB, zeta;
-    double evaluation, clutterFreeBottomIndex;
-    unsigned int nx, ny;
-    double *heightArray, *measuredArray;
+    float groundL, groundB, groundH;
+    float airL, airB, zeta;
+    float evaluation, clutterFreeBottomIndex;
+    unsigned int lineIndex, angleIndex;
+    float *heightArray, *measuredArray;
 } GridInfo;
 
 typedef struct{
@@ -23,6 +23,10 @@ typedef struct {
     DateTime startDateTime, endDateTime;
 } HDFGlobalAttribute;
 
+typedef struct {
+    hid_t elevationID, latitudeID, longitudeID, zenithID, heightID, groundHeightID, valueID, binClutterID;
+} HDFBandRequired;
+
 GridInfo* CreateGridInfo(unsigned int nx, unsigned int ny);
 void DestroyGridInfo(GridInfo* info);
 
@@ -31,6 +35,9 @@ DateTime CreateDateTime(const char* date, const char* time);
 bool ReadHDF5(const char* filename);
 bool ReadSingleAttribute(hid_t fileID, const char* attributeName, hid_t typeID, void* buffer);
 bool ReadGlobalAttribute(hid_t fileID, HDFGlobalAttribute* globalAttribute);
-bool ReadBand(hid_t fileID, hid_t geolocationID, hid_t preID, const char* bandName);
+hid_t GetDatasetID(hid_t fileID, const char* path);
+bool GetRequiredDatasetID(hid_t fileID, const char* bandName, HDFBandRequired* required);
+bool ReadBand(hid_t fileID, const char* bandName, HDFGlobalAttribute* globalAttribute);
+bool ReadSingleScanLine(int lineIndex, const HDFBandRequired* required, GridInfo* infoLine);
 const char* ConstructPath(const char* pathNames[], const int pathLength);
 #endif
