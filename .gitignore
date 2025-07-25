@@ -53,3 +53,8 @@ dkms.conf
 
 # debug information files
 *.dwo
+
+# temp files
+.cache/
+build/
+.DS_Store
