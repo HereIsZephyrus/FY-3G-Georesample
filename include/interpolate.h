@@ -1,6 +1,7 @@
 #ifndef INTERPOLATE_H
 #define INTERPOLATE_H
 
+#include "geotransfer.h"
 #include <stddef.h>
 #include <stdint.h>
 #include <math.h>
@@ -13,5 +14,5 @@ typedef struct {
 CartesianInterpolator calcInterParams(  const double groundX, const double groundY, const double groundZ, const double groundH,
                                         const double latitude, const double longitude, const double zeta);
 
-void calcCartesian(const CartesianInterpolator *interpolator, double *x, double *y, double *z);
+Coordinate calcCartesian(const CartesianInterpolator *interpolator);
 #endif

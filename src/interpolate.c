@@ -44,9 +44,10 @@ CartesianInterpolator calcInterParams(  const double groundX, const double groun
     return interpolator;
 }
 
-void calcCartesian(const CartesianInterpolator *interpolator, double *x, double *y, double *z){
+Coordinate calcCartesian(const CartesianInterpolator *interpolator){
     const double rate = (interpolator->airH - interpolator->groundH) / (interpolator->groundZ - interpolator->groundH);
-    *x = interpolator->groundX + (interpolator->airX - interpolator->groundX) * rate;
-    *y = interpolator->groundY + (interpolator->airY - interpolator->groundY) * rate;
-    *z = interpolator->groundZ + (interpolator->airZ - interpolator->groundZ) * rate;
+    const double x = interpolator->groundX + (interpolator->airX - interpolator->groundX) * rate;
+    const double y = interpolator->groundY + (interpolator->airY - interpolator->groundY) * rate;
+    const double z = interpolator->groundZ + (interpolator->airZ - interpolator->groundZ) * rate;
+    return TransferCartesianToGeodetic(x, y, z, false);
 }
