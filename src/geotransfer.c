@@ -34,6 +34,24 @@ double ComputeS(const double t1, const double t2, const double t3, const double 
     return s;
 }
 
+double ToRadians(const double degree){
+    /**
+     * @brief convert degree to radians
+     * @param degree: degree
+     * @return radians
+    */
+    return degree * M_PI / 180;
+}
+
+double ToDegrees(const double radians){
+    /**
+     * @brief convert radians to degree
+     * @param radians: radians
+     * @return degree
+    */
+    return radians * 180 / M_PI;
+}
+
 bool IsGeodeticValid(const double latitude, const double longitude, const double height) {
     /**
      * @brief check if the geodetic coordinates are valid
@@ -66,10 +84,12 @@ bool TransferGeodeticToCartesian(const double latitude, const double longitude, 
     */
     if (!IsGeodeticValid(latitude, longitude, height))
         return false;
-    const double N = ComputeN(latitude);
-    *x = (N + height) * cos(latitude) * cos(longitude);
-    *y = (N + height) * cos(latitude) * sin(longitude);
-    *z = (N * (1 - WGS84_E * WGS84_E) + height) * sin(latitude);
+    const double latitude_rad = ToRadians(latitude);
+    const double longitude_rad = ToRadians(longitude);
+    const double N = ComputeN(latitude_rad);
+    *x = (N + height) * cos(latitude_rad) * cos(longitude_rad);
+    *y = (N + height) * cos(latitude_rad) * sin(longitude_rad);
+    *z = (N * (1 - WGS84_E * WGS84_E) + height) * sin(latitude_rad);
     return true;
 }
 
@@ -81,15 +101,18 @@ void TransferCartesianToGeodeticLagrange(const double x, const double y, const d
     */
     const double R = sqrt(x * x + y * y + (1 - WGS84_E * WGS84_E) * z * z);
     const double tdenominator = R - WGS84_E * WGS84_E * WGS84_A * (x * x + y * y)/(R*R);
+    if (tdenominator == 0) {
+        fprintf(stderr, "tdenominator is 0\n");
+        return;
+    }
     const double r = R / WGS84_A;
-    const double t1 = sqrt((1 - WGS84_E * WGS84_E) * z) / tdenominator;
+    const double t1 = sqrt((1 - WGS84_E * WGS84_E)) * z / tdenominator;
     const double t2 = sqrt(x * x + y * y) / tdenominator;
     const double t3 = sqrt(1 - WGS84_E * WGS84_E) * z / R;
     const double t4 = sqrt(x * x + y * y) / R;
-    const double s = ComputeS(t1, t2, t3, t4, WGS84_E, R);
-    *latitude = asin(s / sqrt(1 - WGS84_E * WGS84_E + WGS84_E * WGS84_E * s * s));
+    const double s = ComputeS(t1, t2, t3, t4, WGS84_E, R / WGS84_A);
+    *latitude = ToDegrees(asin(s / sqrt(1 - WGS84_E * WGS84_E + WGS84_E * WGS84_E * s * s)));
     *height = sqrt(pow(sqrt(x * x + y * y) - WGS84_A * sqrt(1 - s * s), 2) + pow(z - WGS84_B * s, 2));
-
 }
 
 void TransferCartesianToGeodeticIterative(const double x, const double y, const double z, double *latitude, double *height) {
@@ -98,19 +121,23 @@ void TransferCartesianToGeodeticIterative(const double x, const double y, const 
      * @param x, y, z: cartesian coordinates
      * @param latitude, height: geodetic coordinates
     */
-    double deltaZ = WGS84_E * WGS84_E * z; // initial deltaZ
-    *latitude = atan2(z + deltaZ, sqrt(x * x + y * y));
-    double N = ComputeN(*latitude);
-    const double r = sqrt(x * x + y * y);
+    const double xy_hypot = sqrt(x * x + y * y);
+    double lat0 = 0.0;
+    *latitude = atan(z / xy_hypot);
     double iter = 0;
-    double oldLatitude; // this var will be initialized in the first iteration
-    do{
-        deltaZ = N * WGS84_E * WGS84_E * sin(*latitude) * sin(*latitude);
-        oldLatitude = *latitude;
-        *latitude = atan2(z + deltaZ, r);
-        N = ComputeN(*latitude);
-    }while(fabs(*latitude - oldLatitude) > B_ITER_TOLERANCE && iter++ < B_ITER_MAX_ITER); // 迭代求解纬度
-    *height = sqrt(x * x + y * y + (z + deltaZ) * (z + deltaZ)) - N;
+    do {
+        lat0 = *latitude;
+        double N = ComputeN(lat0);
+        *latitude = atan((z + WGS84_E * WGS84_E * N * sin(lat0)) / xy_hypot);
+    } while (fabs(*latitude - lat0) > B_ITER_TOLERANCE && iter++ < B_ITER_MAX_ITER);
+    double N = ComputeN(*latitude);
+    if (fabs(*latitude) < M_PI / 4.0) {
+        double R = sqrt(x * x + y * y + z * z);
+        double phi = atan(z / xy_hypot);
+        *height = R * cos(phi) / cos(*latitude) - N;
+    } else
+        *height = z / sin(*latitude) - N * (1 - WGS84_E * WGS84_E);
+    *latitude = ToDegrees(*latitude);
 }
 
 bool TransferCartesianToGeodetic(const double x, const double y, const double z, double *latitude, double *longitude, double *height, const bool iterative) {
@@ -121,7 +148,7 @@ bool TransferCartesianToGeodetic(const double x, const double y, const double z,
      * @param latitude, height: geodetic coordinates
      * @return true if success, false if failed
     */
-    *longitude = atan2(y, x);
+    *longitude = ToDegrees(atan2(y, x));
     if (iterative){
         TransferCartesianToGeodeticIterative(x, y, z, latitude, height);
     }
