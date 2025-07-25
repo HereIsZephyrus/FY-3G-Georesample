@@ -35,9 +35,9 @@ $$
 
 $$
 \begin{cases}
-\alpha &= 1 - \frac{1}{\cos^2 Ζ} \\
-\beta &= \frac{2H_g}{\cos^2 Ζ} + 2N_a(\cos^2 B_a + e^2\sin^2 B_a) -2 (X_g \cos B \cos L + y_g \cos B \cos L + z_g \sin B)\\
-\gamma &= X_g^2 + Y_g^2 + Z_g^2 + N_a^2(1 - 2 e^2 \sin^2 B + e^4 \sin^2 B) -2 (X_gN_a \cos B \cos L + y_gN_a \cos B \cos L + z_gN_a(1-e^2) \sin B)
+\alpha &= 1 - \frac{1}{\cos^2 \Zeta} \\
+\beta &= \frac{2H_g}{\cos^2 \Zeta} + 2N_a(\cos^2 B_a + e^2\sin^2 B_a) -2 (X_g \cos B_a \cos L_a + Y_g \cos B_a \cos L_a + Z_g \sin B_a)\\
+\gamma &= X_g^2 + Y_g^2 + Z_g^2 + N_a^2(1 - 2 e^2 \sin^2 B_a + e^4 \sin^2 B_a) -2 (X_gN_a \cos B_a \cos L + Y_gN_a \cos B_a \cos L + Z_gN_a(1-e^2) \sin B_a)
 \end{cases}
 \tag{4}
 $$
