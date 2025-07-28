@@ -10,6 +10,6 @@ void test_readHDF5(void) {
     FinalGrid finalGrid;
     TEST_ASSERT_EQUAL(true, ConstructFinalGrid(&dataset, &finalGrid));
     DestroyHDFDataset(&dataset);
-    TEST_ASSERT_EQUAL(true, WriteHDF5(TEST_OUTPUT_FILE, &finalGrid));
+    TEST_ASSERT_EQUAL(true, WriteHDF5(TEST_OUTPUT_FILE, &finalGrid, &dataset.globalAttribute));
     DestroyFinalGrid(&finalGrid);
 }

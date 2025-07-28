@@ -68,12 +68,6 @@ bool ReadHDF5(const char* filename, HDFDataset* dataset){
             fprintf(stderr, "Failed to read band: %s\n", bandName);
             return false;
         }
-        for (unsigned int lineIndex = DEBUG_INDEX; lineIndex < dataset->globalAttribute.scanLineCount; lineIndex++){
-            for (int angleIndex = 0; angleIndex < SCAN_ANGLE_COUNT; angleIndex++)
-                DestroyGridInfo(&dataset->infoArray[bandIndex][lineIndex][angleIndex]);
-            free(dataset->infoArray[bandIndex][lineIndex]);
-        }
-        free(dataset->infoArray[bandIndex]);
     }
 
     H5Gclose(geolocationID);
@@ -112,24 +106,6 @@ bool ReadSingleAttribute(hid_t fileID, const char* attributeName, hid_t typeID, 
         H5Tclose(typeID);
     H5Aclose(attributeID);
     return true;
-}
-
-int getNumber(const char* str, int length){
-    char temp[5];
-    memset(temp, 0, 5);
-    strncpy(temp, str, length);
-    return atoi(temp);
-}
-
-DateTime CreateDateTime(const char* date, const char* time){
-    DateTime dateTime;
-    dateTime.year = getNumber(date, 4);
-    dateTime.month = getNumber(date + 5, 2);
-    dateTime.day = getNumber(date + 8, 2);
-    dateTime.hour = getNumber(time, 2);
-    dateTime.minute = getNumber(time + 3, 2);
-    dateTime.second = getNumber(time + 6, 2);
-    return dateTime;
 }
 
 bool ReadGlobalAttribute(hid_t fileID, HDFGlobalAttribute* globalAttribute){
@@ -319,11 +295,11 @@ bool ReadSingleScanLine(int lineIndex, const HDFBandRequired* required, GridInfo
         for (int angleIndex = 0; angleIndex < SCAN_ANGLE_COUNT; angleIndex++){
             infoLine[angleIndex].lineIndex = lineIndex;
             infoLine[angleIndex].angleIndex = angleIndex;
-            infoLine[angleIndex].groundL = latitude[angleIndex][0];
-            infoLine[angleIndex].groundB = longitude[angleIndex][0];
+            infoLine[angleIndex].groundL = longitude[angleIndex][0];
+            infoLine[angleIndex].groundB = latitude[angleIndex][0];
             infoLine[angleIndex].groundH = groundHeight[angleIndex];
-            infoLine[angleIndex].airL = latitude[angleIndex][1];
-            infoLine[angleIndex].airB = longitude[angleIndex][1];
+            infoLine[angleIndex].airL = longitude[angleIndex][1];
+            infoLine[angleIndex].airB = latitude[angleIndex][1];
             infoLine[angleIndex].zeta = zenith[angleIndex];
             infoLine[angleIndex].evaluation = elevation[angleIndex];
             infoLine[angleIndex].clutterFreeBottomIndex = binClutter[angleIndex];
@@ -383,7 +359,7 @@ bool ReadBand(hid_t fileID, const char* bandName, HDFGlobalAttribute* globalAttr
     return true;
 }
 
-bool WriteHDF5(const char* filename, const HDFDataset* dataset){
+bool WriteHDF5(const char* filename, const FinalGrid* dataset, const HDFGlobalAttribute* globalAttribute){
     /**
     @brief Write HDF5 file
     @param filename: the name of the HDF5 file
@@ -395,9 +371,11 @@ bool WriteHDF5(const char* filename, const HDFDataset* dataset){
         fprintf(stderr, "Failed to create file: %s\n", filename);   
         return false;
     }
-    hsize_t dims[3] = {100, SCAN_ANGLE_COUNT, SCAN_HEIGHT_COUNT};
-    const hsize_t maxdims[3] = {dataset->globalAttribute.scanLineCount, SCAN_ANGLE_COUNT, SCAN_HEIGHT_COUNT};
+
+    //write data
+    hsize_t dims[3] = {dataset->lineCount, SCAN_ANGLE_COUNT, dataset->heightCount};
     for (int bandIndex = 0; bandIndex < 2; bandIndex++){
+        bool success = true;
         const char* bandName = BAND_NAMES[bandIndex];
         hid_t bandGroupID = H5Gcreate(fileID, ConstructPath((const char*[]){bandName}, 1), H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
         if (bandGroupID < 0){
@@ -406,7 +384,7 @@ bool WriteHDF5(const char* filename, const HDFDataset* dataset){
             H5Fclose(fileID);
             return false;
         }
-        hid_t dataspaceID = H5Screate_simple(3, dims, maxdims);
+        hid_t dataspaceID = H5Screate_simple(3, dims, NULL);
         if (dataspaceID < 0){
             fprintf(stderr, "Failed to create dataspace: %s\n", bandName);
             H5Sclose(dataspaceID);
@@ -414,23 +392,76 @@ bool WriteHDF5(const char* filename, const HDFDataset* dataset){
             H5Fclose(fileID);
             return false;
         }
-        hid_t latitudeID = H5Dcreate(bandGroupID, ConstructPath((const char*[]){bandName, "Latitude"}, 2), H5T_NATIVE_FLOAT, dataspaceID, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-        hid_t longitudeID = H5Dcreate(bandGroupID, ConstructPath((const char*[]){bandName, "Longitude"}, 2), H5T_NATIVE_FLOAT, dataspaceID, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-        hid_t heightID = H5Dcreate(bandGroupID, "height", H5T_NATIVE_FLOAT, H5S_SCALAR, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-        if (latitudeID < 0 || longitudeID < 0 || heightID < 0){
+        hid_t latitudeID = H5Dcreate(bandGroupID, "Latitude", H5T_NATIVE_FLOAT, dataspaceID, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        hid_t longitudeID = H5Dcreate(bandGroupID, "Longitude", H5T_NATIVE_FLOAT, dataspaceID, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        hid_t elevationID = H5Dcreate(bandGroupID, "Elevation", H5T_NATIVE_FLOAT, dataspaceID, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        hid_t valueID = H5Dcreate(bandGroupID, "Value", H5T_NATIVE_FLOAT, dataspaceID, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        if (latitudeID < 0 || longitudeID < 0 || elevationID < 0 || valueID < 0){
             fprintf(stderr, "Failed to create dataset: %s\n", bandName);
-            H5Sclose(dataspaceID);
-            H5Dclose(latitudeID);
-            H5Dclose(longitudeID);
-            H5Dclose(heightID);
-            H5Gclose(bandGroupID);
-            H5Fclose(fileID);
-            return false;
+            success = false;
         }
-        herr_t status = H5Dwrite(latitudeID, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, dataset->infoArray[bandIndex][0][0].airL);
+        herr_t status = H5Dwrite(latitudeID, H5T_IEEE_F32LE, H5S_ALL, H5S_ALL, H5P_DEFAULT, dataset->latitudeArray[bandIndex]);
+        if (status < 0){
+            fprintf(stderr, "Failed to write latitude\n");
+            success = false;
+        }
+        status = H5Dwrite(longitudeID, H5T_IEEE_F32LE, H5S_ALL, H5S_ALL, H5P_DEFAULT, dataset->longitudeArray[bandIndex]);
+        if (status < 0){
+            fprintf(stderr, "Failed to write longitude\n");
+            success = false;
+        }
+        status = H5Dwrite(elevationID, H5T_IEEE_F32LE, H5S_ALL, H5S_ALL, H5P_DEFAULT, dataset->elevationArray[bandIndex]);
+        if (status < 0){
+            fprintf(stderr, "Failed to write elevation\n");
+            success = false;
+        }
+        status = H5Dwrite(valueID, H5T_IEEE_F32LE, H5S_ALL, H5S_ALL, H5P_DEFAULT, dataset->valueArray[bandIndex]);
+        if (status < 0){
+            fprintf(stderr, "Failed to write value\n");
+            success = false;
+        }
         H5Sclose(dataspaceID);
+        H5Dclose(latitudeID);
+        H5Dclose(longitudeID);
+        H5Dclose(elevationID);
+        H5Dclose(valueID);
         H5Gclose(bandGroupID);
+        if (!success)
+            return false;
     }
+
+    //write global attribute
+    hid_t attrDataspaceID = H5Screate(H5S_SCALAR);
+    if (attrDataspaceID < 0){
+        fprintf(stderr, "Failed to create dataspace: %s\n", "Scan_Lines");
+        H5Fclose(fileID);
+        return false;
+    }
+    hid_t scanLineCountID = H5Acreate(fileID, "Scan_Lines", H5T_NATIVE_INT, attrDataspaceID, H5P_DEFAULT, H5P_DEFAULT);
+    hid_t strType = H5Tcopy(H5T_C_S1);
+    H5Tset_size(strType, 20);
+    if (scanLineCountID < 0)
+        fprintf(stderr, "Failed to create dataset: %s\n", "scanLineCount");
+    hid_t startDateTimeID = H5Acreate(fileID, "Observing_Beginning_DateTime", strType, attrDataspaceID, H5P_DEFAULT, H5P_DEFAULT);
+    if (startDateTimeID < 0)
+        fprintf(stderr, "Failed to create dataset: %s\n", "startDateTime");
+    hid_t endDateTimeID = H5Acreate(fileID, "Observing_Ending_DateTime", strType, attrDataspaceID, H5P_DEFAULT, H5P_DEFAULT);
+    if (endDateTimeID < 0)
+        fprintf(stderr, "Failed to create dataset: %s\n", "endDateTime");
+    herr_t status = H5Awrite(scanLineCountID, H5T_NATIVE_INT, &globalAttribute->scanLineCount);
+    if (status < 0)
+        fprintf(stderr, "Failed to write dataset: %s\n", "scanLineCount");
+    status = H5Awrite(startDateTimeID, strType, ConstructDateTimeString(&globalAttribute->startDateTime));
+    if (status < 0)
+        fprintf(stderr, "Failed to write dataset: %s\n", "startDateTime");
+    status = H5Awrite(endDateTimeID, strType, ConstructDateTimeString(&globalAttribute->endDateTime));
+    if (status < 0)
+        fprintf(stderr, "Failed to write dataset: %s\n", "endDateTime");
+    H5Tclose(strType);
+    H5Aclose(scanLineCountID);
+    H5Aclose(startDateTimeID);
+    H5Aclose(endDateTimeID);
+    H5Sclose(attrDataspaceID);
     H5Fclose(fileID);
     return true;
 }
@@ -450,16 +481,17 @@ bool ConstructFinalGrid(const HDFDataset* dataset, FinalGrid* finalGrid){
             return false;
         }
     }
-    #pragma omp parallel for shared(dataset, finalGrid)
+    //#pragma omp parallel for shared(dataset, finalGrid)
     for (unsigned int lineIndex = 0; lineIndex < finalGrid->lineCount; lineIndex++)
         for (int bandIndex = 0; bandIndex < 2; bandIndex++)
             for (unsigned int angleIndex = 0; angleIndex < SCAN_ANGLE_COUNT; angleIndex++)
                 for (unsigned int heightIndex = 0; heightIndex < finalGrid->heightCount; heightIndex++){
                     const int index = lineIndex * SCAN_ANGLE_COUNT * finalGrid->heightCount + angleIndex * finalGrid->heightCount + heightIndex;
-                    finalGrid->latitudeArray[bandIndex][index] = dataset->infoArray[bandIndex][lineIndex][angleIndex].groundB;
-                    finalGrid->longitudeArray[bandIndex][index] = dataset->infoArray[bandIndex][lineIndex][angleIndex].groundL;
-                    finalGrid->elevationArray[bandIndex][index] = dataset->infoArray[bandIndex][lineIndex][angleIndex].evaluation;
-                    finalGrid->valueArray[bandIndex][index] = dataset->infoArray[bandIndex][lineIndex][angleIndex].measuredArray[heightIndex];
+                    const int sampleLineIndex = DEBUG_INDEX;
+                    finalGrid->latitudeArray[bandIndex][index] = dataset->infoArray[bandIndex][sampleLineIndex][angleIndex].groundB;
+                    finalGrid->longitudeArray[bandIndex][index] = dataset->infoArray[bandIndex][sampleLineIndex][angleIndex].groundL;
+                    finalGrid->elevationArray[bandIndex][index] = dataset->infoArray[bandIndex][sampleLineIndex][angleIndex].evaluation;
+                    finalGrid->valueArray[bandIndex][index] = dataset->infoArray[bandIndex][sampleLineIndex][angleIndex].measuredArray[heightIndex];
                 }
     return true;
 }

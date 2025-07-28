@@ -4,7 +4,7 @@
 #define SCAN_HEIGHT_COUNT 500
 #define GEOLOCATION_GROUP_NAME "Geolocation"
 #define PRE_GROUP_NAME "PRE"
-#define DEBUG_INDEX 3800
+#define DEBUG_INDEX 3850
 #include <stdlib.h>
 #include <hdf5.h>
 
@@ -39,6 +39,10 @@ typedef struct {
 typedef struct {
     hid_t elevationID, latitudeID, longitudeID, zenithID, heightID, groundHeightID, valueID, binClutterID;
 } HDFBandRequired;
+
+DateTime CreateDateTime(const char* date, const char* time);
+int getNumber(const char* str, int length);
+char* ConstructDateTimeString(const DateTime* dateTime);
 
 void DestroyGridInfo(GridInfo* info);
 void DestroyHDFDataset(HDFDataset* dataset);

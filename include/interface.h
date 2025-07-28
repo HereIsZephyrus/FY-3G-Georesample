@@ -3,9 +3,6 @@
 #include <hdf5.h>
 #include "data.h"
 
-DateTime CreateDateTime(const char* date, const char* time);
-int getNumber(const char* str, int length);
-
 bool ReadHDF5(const char* filename, HDFDataset* dataset);
 bool ReadSingleAttribute(hid_t fileID, const char* attributeName, hid_t typeID, void* buffer);
 bool ReadGlobalAttribute(hid_t fileID, HDFGlobalAttribute* globalAttribute);
@@ -17,5 +14,5 @@ bool ReadSingleDataset(int rank, hid_t datasetID, hsize_t* offset, hsize_t* coun
 char* ConstructPath(const char* pathNames[], const int pathLength);
 
 bool ConstructFinalGrid(const HDFDataset* dataset, FinalGrid* finalGrid);
-bool WriteHDF5(const char* filename, const FinalGrid* finalGrid);
+bool WriteHDF5(const char* filename, const FinalGrid* finalGrid, const HDFGlobalAttribute* globalAttribute);
 #endif
