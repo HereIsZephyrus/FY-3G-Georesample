@@ -17,8 +17,8 @@ GridInfo* CreateGridInfo(unsigned int lineIndex, unsigned int angleIndex) {
     if (info != NULL) {
         info->lineIndex = lineIndex;
         info->angleIndex = angleIndex;
-        info->heightArray = (double*)malloc(SCAN_HEIGHT_COUNT * sizeof(double));
-        info->measuredArray = (double*)malloc(SCAN_HEIGHT_COUNT * sizeof(double));
+        info->heightArray = (float*)malloc(SCAN_HEIGHT_COUNT * sizeof(float));
+        info->measuredArray = (float*)malloc(SCAN_HEIGHT_COUNT * sizeof(float));
         if (!info->heightArray || !info->measuredArray) {
             DestroyGridInfo(info); 
             return NULL;
@@ -247,20 +247,24 @@ bool ReadSingleScanLine(int lineIndex, const HDFBandRequired* required, GridInfo
     hid_t memspaceID = H5Screate_simple(2, count2D, NULL);
     hid_t dataspaceID = H5Dget_space(required->elevationID);
     float* elevation = (float*)malloc(SCAN_ANGLE_COUNT * sizeof(float));
-    status = H5Dread(required->elevationID, H5T_NATIVE_FLOAT, memspaceID, dataspaceID, H5P_DEFAULT, elevation);
-    H5Sclose(dataspaceID);
-    H5Sclose(memspaceID);
 
+    /*
+    status = H5Dread(required->elevationID, H5T_NATIVE_FLOAT, memspaceID, dataspaceID, H5P_DEFAULT, elevation);
     if (status < 0){
         fprintf(stderr, "Failed to select hyperslab\n");
         return false;
     }
+
     status = H5Dread(required->elevationID, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, infoLine->heightArray);
     if (status < 0){
         fprintf(stderr, "Failed to read elevation\n");
         return false;
     }
+
     status = H5Dread(required->latitudeID, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, infoLine->latitudeArray);
+    */
+    H5Sclose(dataspaceID);
+    H5Sclose(memspaceID);
     return true;
 }
 

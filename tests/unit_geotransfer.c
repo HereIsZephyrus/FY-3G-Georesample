@@ -1,8 +1,5 @@
-#include <stdlib.h>
-#include <math.h>
-#include <time.h>
 #include "geotransfer.h"
-#include "unity.h"
+#include "test_suites.h"
 #define MIN_HEIGHT -50
 #define MAX_HEIGHT 200000
 #define MIN_LATITUDE -80
@@ -19,12 +16,6 @@ static double random_height() {
 static double random_longitude() {
     return (double)rand() / RAND_MAX * 360 - 180;
 }
-
-void setUp(void) {
-    srand(time(NULL));
-}
-
-void tearDown(void) {}
 
 void test_geotransfer(void) {
     double latitude, longitude, height;
@@ -45,10 +36,4 @@ void test_geotransfer(void) {
         TEST_ASSERT_DOUBLE_WITHIN_MESSAGE(1e-10, in_longitude, lagrange_coordinate.b, "longitude calculated by Lagrange method is equal to the input longitude");
         TEST_ASSERT_DOUBLE_WITHIN_MESSAGE(1e-4, in_height, lagrange_coordinate.h, "height calculated by Lagrange method is equal to the input height");
     }
-}
-
-int main(void) {
-    UNITY_BEGIN();
-    RUN_TEST(test_geotransfer);
-    return UNITY_END();
 }

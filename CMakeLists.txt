@@ -14,6 +14,8 @@ set(TEST_DIR ${CMAKE_CURRENT_SOURCE_DIR}/tests)
 set(TEST_FILES
     ${TEST_DIR}/Unity/src/unity.c
     ${TEST_DIR}/unit_geotransfer.c
+    ${TEST_DIR}/unit_readHDF.c
+    ${TEST_DIR}/test_suites.c
 )
 
 set(SOURCE_FILES
