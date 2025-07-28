@@ -105,6 +105,7 @@ void TransferCartesianToGeodeticLagrange(const double x, const double y, const d
         fprintf(stderr, "tdenominator is 0\n");
         return;
     }
+    const double r = R / WGS84_A;
     const double t1 = sqrt((1 - WGS84_E * WGS84_E)) * z / tdenominator;
     const double t2 = sqrt(x * x + y * y) / tdenominator;
     const double t3 = sqrt(1 - WGS84_E * WGS84_E) * z / R;
@@ -139,7 +140,7 @@ void TransferCartesianToGeodeticIterative(const double x, const double y, const 
     *latitude = ToDegrees(*latitude);
 }
 
-Coordinate TransferCartesianToGeodetic(const double x, const double y, const double z, const bool iterative) {
+bool TransferCartesianToGeodetic(const double x, const double y, const double z, double *latitude, double *longitude, double *height, const bool iterative) {
     /**
      * @brief transfer cartesian to geodetic coordinates
      * @param iterative: use iterative method(true) or use lagrange method(false)
@@ -147,16 +148,11 @@ Coordinate TransferCartesianToGeodetic(const double x, const double y, const dou
      * @param latitude, height: geodetic coordinates
      * @return true if success, false if failed
     */
-    double longitude = ToDegrees(atan2(y, x)), latitude = 0.0, height = 0.0;
-    
-    if (iterative)
-        TransferCartesianToGeodeticIterative(x, y, z, &latitude, &height);
-    else
-        TransferCartesianToGeodeticLagrange(x, y, z, &latitude, &height);
-
-    if (!IsGeodeticValid(latitude, longitude, height)){
-        fprintf(stderr, "geodetic coordinates is not valid\n");
-        return (Coordinate){0, 0, 0, 0, 0, 0};
+    *longitude = ToDegrees(atan2(y, x));
+    if (iterative){
+        TransferCartesianToGeodeticIterative(x, y, z, latitude, height);
     }
-    return (Coordinate){x, y, z, latitude, longitude, height};
+    else
+        TransferCartesianToGeodeticLagrange(x, y, z, latitude, height);
+    return IsGeodeticValid(*latitude, *longitude, *height);
 }

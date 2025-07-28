@@ -58,10 +58,3 @@ dkms.conf
 .cache/
 build/
 .DS_Store
-
-# hdf5 files
-*.h5
-*.hdf5
-*.hdf
-*.h5
-*.HDF
