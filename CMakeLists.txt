@@ -25,6 +25,7 @@ set(SOURCE_FILES
     src/interface.c
     src/networking.c
     src/geotransfer.c
+    src/data.c
 )
 
 add_library(FY3G_Resampling SHARED

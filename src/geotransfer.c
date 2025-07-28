@@ -105,7 +105,6 @@ void TransferCartesianToGeodeticLagrange(const double x, const double y, const d
         fprintf(stderr, "tdenominator is 0\n");
         return;
     }
-    const double r = R / WGS84_A;
     const double t1 = sqrt((1 - WGS84_E * WGS84_E)) * z / tdenominator;
     const double t2 = sqrt(x * x + y * y) / tdenominator;
     const double t3 = sqrt(1 - WGS84_E * WGS84_E) * z / R;

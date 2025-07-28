@@ -1,43 +1,11 @@
 #include "interface.h"
+#include "data.h"
 #include <H5Ipublic.h>
 #include <H5Tpublic.h>
 #include <H5public.h>
 #include <stdlib.h>
 #include <string.h>
 #include <omp.h>
-#define DEBUG_INDEX 3800
-
-GridInfo* CreateGridInfo(unsigned int lineIndex, unsigned int angleIndex) {
-    /**
-    @brief Create GridInfo
-    @param lineIndex: the line index
-    @param angleIndex: the angle index
-    @return the GridInfo pointer, NULL if failed
-    */
-    GridInfo* info = (GridInfo*)malloc(sizeof(GridInfo));
-    if (info != NULL) {
-        info->lineIndex = lineIndex;
-        info->angleIndex = angleIndex;
-        info->heightArray = (float*)malloc(SCAN_HEIGHT_COUNT * sizeof(float));
-        info->measuredArray = (float*)malloc(SCAN_HEIGHT_COUNT * sizeof(float));
-        if (!info->heightArray || !info->measuredArray) {
-            DestroyGridInfo(info); 
-            return NULL;
-        }
-    }
-    return info;
-}
-
-void DestroyGridInfo(GridInfo* info) {
-    /**
-    @brief Destroy GridInfo
-    @param info: the GridInfo to destroy
-    */
-    if (info) {
-        free(info->heightArray);
-        free(info->measuredArray);
-    }
-}
 
 char* ConstructPath(const char* pathNames[], const int pathLength){
     /**
@@ -64,13 +32,13 @@ char* ConstructPath(const char* pathNames[], const int pathLength){
     return path;
 }
 
-bool ReadHDF5(const char* filename){
+bool ReadHDF5(const char* filename, HDFDataset* dataset){
     /**
     @brief Read HDF5 file
     @param filename: the name of the HDF5 file
+    @param dataset: the dataset to store the data
     @return true if successful, false otherwise
     */
-    const char* bandNames[] = {"Ka","Ku"};
     hid_t fileID = H5Fopen(filename, H5F_ACC_RDONLY, H5P_DEFAULT);
     if (fileID < 0){
         fprintf(stderr, "Failed to open file: %s\n", filename);
@@ -88,18 +56,24 @@ bool ReadHDF5(const char* filename){
         fprintf(stderr, "Failed to open dataset: %s\n", PRE_GROUP_NAME);
         return false;
     }
-    HDFGlobalAttribute globalAttribute;
-    if (!ReadGlobalAttribute(fileID, &globalAttribute)){
+    if (!ReadGlobalAttribute(fileID, &dataset->globalAttribute)){
         fprintf(stderr, "Failed to read global attribute\n");
         return false;
     }
 
     for (int bandIndex = 0; bandIndex < 2; bandIndex++){
-        const char* bandName = bandNames[bandIndex];
-        if (!ReadBand(fileID, bandName, &globalAttribute)){
+        const char* bandName = BAND_NAMES[bandIndex];
+        dataset->infoArray[bandIndex] = (GridInfo**)malloc(dataset->globalAttribute.scanLineCount * sizeof(GridInfo*));
+        if (!ReadBand(fileID, bandName, &dataset->globalAttribute, dataset->infoArray[bandIndex])){
             fprintf(stderr, "Failed to read band: %s\n", bandName);
             return false;
         }
+        for (unsigned int lineIndex = DEBUG_INDEX; lineIndex < dataset->globalAttribute.scanLineCount; lineIndex++){
+            for (int angleIndex = 0; angleIndex < SCAN_ANGLE_COUNT; angleIndex++)
+                DestroyGridInfo(&dataset->infoArray[bandIndex][lineIndex][angleIndex]);
+            free(dataset->infoArray[bandIndex][lineIndex]);
+        }
+        free(dataset->infoArray[bandIndex]);
     }
 
     H5Gclose(geolocationID);
@@ -367,12 +341,13 @@ bool ReadSingleScanLine(int lineIndex, const HDFBandRequired* required, GridInfo
     return success;
 }
 
-bool ReadBand(hid_t fileID, const char* bandName, HDFGlobalAttribute* globalAttribute){
+bool ReadBand(hid_t fileID, const char* bandName, HDFGlobalAttribute* globalAttribute, GridInfo** infoArray){
     /**
     @brief Read band
     @param fileID: the file ID
     @param bandName: the name of the band
     @param globalAttribute: the global attribute
+    @param infoArray: the info array to store the data
     @return true if successful, false otherwise
     */
     HDFBandRequired required;
@@ -380,10 +355,8 @@ bool ReadBand(hid_t fileID, const char* bandName, HDFGlobalAttribute* globalAttr
         fprintf(stderr, "Failed to get all required dataset ID\n");
         return false;
     }
-    GridInfo **infoArray = (GridInfo**)malloc(globalAttribute->scanLineCount * sizeof(GridInfo*));
-
     #pragma omp parallel for shared(infoArray, required, globalAttribute)
-    for (int lineIndex = DEBUG_INDEX; lineIndex < globalAttribute->scanLineCount; lineIndex++){
+    for (unsigned int lineIndex = DEBUG_INDEX; lineIndex < globalAttribute->scanLineCount; lineIndex++){
         GridInfo* infoLine = (GridInfo*)malloc(SCAN_ANGLE_COUNT * sizeof(GridInfo));
         if (!infoLine){
             fprintf(stderr, "Failed to allocate memory for infoLine\n");
@@ -407,12 +380,86 @@ bool ReadBand(hid_t fileID, const char* bandName, HDFGlobalAttribute* globalAttr
     H5Dclose(required.groundHeightID);
     H5Dclose(required.valueID);
     H5Dclose(required.binClutterID);
+    return true;
+}
 
-    for (int lineIndex = DEBUG_INDEX; lineIndex < globalAttribute->scanLineCount; lineIndex++){
-        for (int angleIndex = 0; angleIndex < SCAN_ANGLE_COUNT; angleIndex++)
-            DestroyGridInfo(&infoArray[lineIndex][angleIndex]);
-        free(infoArray[lineIndex]);
+bool WriteHDF5(const char* filename, const HDFDataset* dataset){
+    /**
+    @brief Write HDF5 file
+    @param filename: the name of the HDF5 file
+    @param dataset: the dataset to write
+    @return true if successful, false otherwise
+    */
+    hid_t fileID = H5Fcreate(filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (fileID < 0){
+        fprintf(stderr, "Failed to create file: %s\n", filename);   
+        return false;
     }
-    free(infoArray);
+    hsize_t dims[3] = {100, SCAN_ANGLE_COUNT, SCAN_HEIGHT_COUNT};
+    const hsize_t maxdims[3] = {dataset->globalAttribute.scanLineCount, SCAN_ANGLE_COUNT, SCAN_HEIGHT_COUNT};
+    for (int bandIndex = 0; bandIndex < 2; bandIndex++){
+        const char* bandName = BAND_NAMES[bandIndex];
+        hid_t bandGroupID = H5Gcreate(fileID, ConstructPath((const char*[]){bandName}, 1), H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        if (bandGroupID < 0){
+            fprintf(stderr, "Failed to create group: %s\n", bandName);
+            H5Gclose(bandGroupID);
+            H5Fclose(fileID);
+            return false;
+        }
+        hid_t dataspaceID = H5Screate_simple(3, dims, maxdims);
+        if (dataspaceID < 0){
+            fprintf(stderr, "Failed to create dataspace: %s\n", bandName);
+            H5Sclose(dataspaceID);
+            H5Gclose(bandGroupID);
+            H5Fclose(fileID);
+            return false;
+        }
+        hid_t latitudeID = H5Dcreate(bandGroupID, ConstructPath((const char*[]){bandName, "Latitude"}, 2), H5T_NATIVE_FLOAT, dataspaceID, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        hid_t longitudeID = H5Dcreate(bandGroupID, ConstructPath((const char*[]){bandName, "Longitude"}, 2), H5T_NATIVE_FLOAT, dataspaceID, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        hid_t heightID = H5Dcreate(bandGroupID, "height", H5T_NATIVE_FLOAT, H5S_SCALAR, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        if (latitudeID < 0 || longitudeID < 0 || heightID < 0){
+            fprintf(stderr, "Failed to create dataset: %s\n", bandName);
+            H5Sclose(dataspaceID);
+            H5Dclose(latitudeID);
+            H5Dclose(longitudeID);
+            H5Dclose(heightID);
+            H5Gclose(bandGroupID);
+            H5Fclose(fileID);
+            return false;
+        }
+        herr_t status = H5Dwrite(latitudeID, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, dataset->infoArray[bandIndex][0][0].airL);
+        H5Sclose(dataspaceID);
+        H5Gclose(bandGroupID);
+    }
+    H5Fclose(fileID);
+    return true;
+}
+
+bool ConstructFinalGrid(const HDFDataset* dataset, FinalGrid* finalGrid){
+    finalGrid->lineCount = dataset->globalAttribute.scanLineCount / 10;
+    finalGrid->heightCount = SCAN_HEIGHT_COUNT / 10;
+    const int dims[3] = {finalGrid->lineCount, SCAN_ANGLE_COUNT, finalGrid->heightCount};
+    const int memSize = dims[0] * dims[1] * dims[2] * sizeof(float);
+    for (int bandIndex = 0; bandIndex < 2; bandIndex++){
+        finalGrid->latitudeArray[bandIndex] = (float*)malloc(memSize);
+        finalGrid->longitudeArray[bandIndex] = (float*)malloc(memSize);
+        finalGrid->elevationArray[bandIndex] = (float*)malloc(memSize);
+        finalGrid->valueArray[bandIndex] = (float*)malloc(memSize);
+        if (!finalGrid->latitudeArray[bandIndex] || !finalGrid->longitudeArray[bandIndex] || !finalGrid->elevationArray[bandIndex] || !finalGrid->valueArray[bandIndex]){
+            fprintf(stderr, "Failed to allocate memory for latitudeArray, longitudeArray, elevationArray or valueArray\n");
+            return false;
+        }
+    }
+    #pragma omp parallel for shared(dataset, finalGrid)
+    for (unsigned int lineIndex = 0; lineIndex < finalGrid->lineCount; lineIndex++)
+        for (int bandIndex = 0; bandIndex < 2; bandIndex++)
+            for (unsigned int angleIndex = 0; angleIndex < SCAN_ANGLE_COUNT; angleIndex++)
+                for (unsigned int heightIndex = 0; heightIndex < finalGrid->heightCount; heightIndex++){
+                    const int index = lineIndex * SCAN_ANGLE_COUNT * finalGrid->heightCount + angleIndex * finalGrid->heightCount + heightIndex;
+                    finalGrid->latitudeArray[bandIndex][index] = dataset->infoArray[bandIndex][lineIndex][angleIndex].groundB;
+                    finalGrid->longitudeArray[bandIndex][index] = dataset->infoArray[bandIndex][lineIndex][angleIndex].groundL;
+                    finalGrid->elevationArray[bandIndex][index] = dataset->infoArray[bandIndex][lineIndex][angleIndex].evaluation;
+                    finalGrid->valueArray[bandIndex][index] = dataset->infoArray[bandIndex][lineIndex][angleIndex].measuredArray[heightIndex];
+                }
     return true;
 }
