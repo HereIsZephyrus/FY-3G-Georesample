@@ -40,5 +40,6 @@ hid_t GetDatasetID(hid_t fileID, const char* path);
 bool GetRequiredDatasetID(hid_t fileID, const char* bandName, HDFBandRequired* required);
 bool ReadBand(hid_t fileID, const char* bandName, HDFGlobalAttribute* globalAttribute);
 bool ReadSingleScanLine(int lineIndex, const HDFBandRequired* required, GridInfo* infoLine);
+bool ReadSingleDataset(int rank, hid_t datasetID, hsize_t* offset, hsize_t* count, void* buffer);
 const char* ConstructPath(const char* pathNames[], const int pathLength);
 #endif

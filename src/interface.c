@@ -46,7 +46,7 @@ const char* ConstructPath(const char* pathNames[], const int pathLength){
     @param pathLength: the length of the path
     @return the path
     */
-    char* path = (char*)malloc(pathLength * sizeof(char));
+    char* path = (char*)malloc(255 * sizeof(char));
     if (path == NULL){
         fprintf(stderr, "Failed to allocate memory for path\n");
         return NULL;
@@ -241,6 +241,41 @@ bool GetRequiredDatasetID(hid_t fileID, const char* bandName, HDFBandRequired* r
     return true;
 }
 
+bool ReadSingleDataset(int rank, hid_t datasetID, hsize_t* offset, hsize_t* count, void* buffer){
+    /**
+    @brief Read single dataset
+    @param datasetID: the dataset ID
+    @param offset: the offset
+    @param count: the count
+    @param buffer: the buffer
+    @return true if successful, false otherwise
+    */
+    hid_t dataspaceID = H5Dget_space(datasetID);
+    if (dataspaceID < 0){
+        fprintf(stderr, "Failed to get dataspace\n");
+        H5Sclose(dataspaceID);
+        return false;
+    }
+    herr_t status = H5Sselect_hyperslab(dataspaceID, H5S_SELECT_SET, offset, NULL, count, NULL);
+    if (status < 0){
+        fprintf(stderr, "Failed to select hyperslab\n");
+        H5Sclose(dataspaceID);
+        return false;
+    }
+
+    hid_t memspaceID = H5Screate_simple(rank, count, NULL);
+    status = H5Dread(datasetID, H5T_NATIVE_FLOAT, memspaceID, dataspaceID, H5P_DEFAULT, buffer);
+    if (status < 0){
+        fprintf(stderr, "Failed to read data\n");
+        H5Sclose(dataspaceID);
+        H5Sclose(memspaceID);
+        return false;
+    }
+    H5Sclose(dataspaceID);
+    H5Sclose(memspaceID);
+    return true;
+}
+
 bool ReadSingleScanLine(int lineIndex, const HDFBandRequired* required, GridInfo* infoLine){
     /**
     @brief Read single scan line
@@ -249,34 +284,64 @@ bool ReadSingleScanLine(int lineIndex, const HDFBandRequired* required, GridInfo
     @param infoLine: the info line to store the data
     @return true if successful, false otherwise
     */
+    bool success = true;
+    float elevation[SCAN_ANGLE_COUNT];
+    float latitude[SCAN_ANGLE_COUNT][2];
+    float longitude[SCAN_ANGLE_COUNT][2];
+    float groundHeight[SCAN_ANGLE_COUNT];
+    float zenith[SCAN_ANGLE_COUNT];
+    float value[SCAN_ANGLE_COUNT][SCAN_HEIGHT_COUNT];
+    float binClutter[SCAN_ANGLE_COUNT];
     hsize_t offset2D[2] = {lineIndex, 0};
     hsize_t offset3D[3] = {lineIndex, 0, 0};
     hsize_t count2D[2] = {1, SCAN_ANGLE_COUNT};
-    hsize_t count3D[3] = {1, SCAN_ANGLE_COUNT, H5S_UNLIMITED};
-
-    herr_t status = H5Sselect_hyperslab(required->elevationID, H5S_SELECT_SET, offset2D, NULL, count2D, NULL);
-    hid_t memspaceID = H5Screate_simple(2, count2D, NULL);
-    hid_t dataspaceID = H5Dget_space(required->elevationID);
-    float* elevation = (float*)malloc(SCAN_ANGLE_COUNT * sizeof(float));
-
-    /*
-    status = H5Dread(required->elevationID, H5T_NATIVE_FLOAT, memspaceID, dataspaceID, H5P_DEFAULT, elevation);
-    if (status < 0){
-        fprintf(stderr, "Failed to select hyperslab\n");
-        return false;
-    }
-
-    status = H5Dread(required->elevationID, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, infoLine->heightArray);
-    if (status < 0){
+    hsize_t count3Dint[3] = {1, SCAN_ANGLE_COUNT, 2};
+    hsize_t count3Dvalue[3] = {1, SCAN_ANGLE_COUNT, SCAN_HEIGHT_COUNT};
+    if (!ReadSingleDataset(2, required->elevationID, offset2D, count2D, elevation)){
         fprintf(stderr, "Failed to read elevation\n");
-        return false;
+        success = false;
     }
-
-    status = H5Dread(required->latitudeID, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, infoLine->latitudeArray);
-    */
-    H5Sclose(dataspaceID);
-    H5Sclose(memspaceID);
-    return true;
+    if (!ReadSingleDataset(3, required->latitudeID, offset3D, count3Dint, latitude)){
+        fprintf(stderr, "Failed to read latitude\n");
+        success = false;
+    }
+    if (!ReadSingleDataset(3, required->longitudeID, offset3D, count3Dint, longitude)){
+        fprintf(stderr, "Failed to read longitude\n");
+        success = false;
+    }
+    if (!ReadSingleDataset(2, required->groundHeightID, offset2D, count2D, groundHeight)){
+        fprintf(stderr, "Failed to read ground height\n");
+        success = false;
+    }
+    if (!ReadSingleDataset(2, required->zenithID, offset2D, count2D, zenith)){
+        fprintf(stderr, "Failed to read zenith\n");
+        success = false;
+    }
+    if (!ReadSingleDataset(3, required->valueID, offset3D, count3Dvalue, value)){
+        fprintf(stderr, "Failed to read value\n");
+        success = false;
+    }
+    if (!ReadSingleDataset(2, required->binClutterID, offset2D, count2D, binClutter)){
+        fprintf(stderr, "Failed to read bin clutter\n");
+        success = false;
+    }
+    if (success){
+        for (int angleIndex = 0; angleIndex < SCAN_ANGLE_COUNT; angleIndex++){
+            infoLine[angleIndex].lineIndex = lineIndex;
+            infoLine[angleIndex].angleIndex = angleIndex;
+            infoLine[angleIndex].groundL = latitude[angleIndex][0];
+            infoLine[angleIndex].groundB = longitude[angleIndex][0];
+            infoLine[angleIndex].groundH = groundHeight[angleIndex];
+            infoLine[angleIndex].airL = latitude[angleIndex][1];
+            infoLine[angleIndex].airB = longitude[angleIndex][1];
+            infoLine[angleIndex].zeta = zenith[angleIndex];
+            infoLine[angleIndex].evaluation = elevation[angleIndex];
+            infoLine[angleIndex].measuredArray = value[angleIndex];
+            infoLine[angleIndex].heightArray = value[angleIndex];
+            infoLine[angleIndex].clutterFreeBottomIndex = binClutter[angleIndex];
+        }
+    }
+    return success;
 }
 
 bool ReadBand(hid_t fileID, const char* bandName, HDFGlobalAttribute* globalAttribute){
