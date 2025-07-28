@@ -481,7 +481,7 @@ bool ConstructFinalGrid(const HDFDataset* dataset, FinalGrid* finalGrid){
             return false;
         }
     }
-    //#pragma omp parallel for shared(dataset, finalGrid)
+    #pragma omp parallel for shared(dataset, finalGrid)
     for (unsigned int lineIndex = 0; lineIndex < finalGrid->lineCount; lineIndex++)
         for (int bandIndex = 0; bandIndex < 2; bandIndex++)
             for (unsigned int angleIndex = 0; angleIndex < SCAN_ANGLE_COUNT; angleIndex++)
