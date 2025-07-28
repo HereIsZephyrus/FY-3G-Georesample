@@ -5,10 +5,6 @@
 const char* BAND_NAMES[2] = {"Ka", "Ku"};
 
 void DestroyGridInfo(GridInfo* info) {
-    /**
-    @brief Destroy GridInfo
-    @param info: the GridInfo to destroy
-    */
     if (info) {
         if (info->heightArray)
             free(info->heightArray);

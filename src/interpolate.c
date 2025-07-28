@@ -5,6 +5,17 @@
 
 CartesianInterpolator calcInterParams(  const double groundX, const double groundY, const double groundZ, const double groundH,
                                         const double latitude, const double longitude, const double zeta) {
+    /**
+     * @brief Calculate the interpolator
+     * @param groundX: the ground X coordinate
+     * @param groundY: the ground Y coordinate
+     * @param groundZ: the ground Z coordinate
+     * @param groundH: the ground height
+     * @param latitude: the latitude
+     * @param longitude: the longitude
+     * @param zeta: the zenith angle
+     * @return the interpolator
+     */
     const double N = ComputeN(latitude);
     const double zeta_rad = ToRadians(zeta), latitude_rad = ToRadians(latitude), longitude_rad = ToRadians(longitude);
     const double alpha = 1 - 1 / (cos(zeta_rad) * cos(zeta_rad));
@@ -45,6 +56,11 @@ CartesianInterpolator calcInterParams(  const double groundX, const double groun
 }
 
 Coordinate calcCartesian(const CartesianInterpolator *interpolator){
+    /**
+     * @brief Calculate the Cartesian coordinate
+     * @param interpolator: the interpolator
+     * @return the Cartesian coordinate
+     */
     const double rate = (interpolator->airH - interpolator->groundH) / (interpolator->groundZ - interpolator->groundH);
     const double x = interpolator->groundX + (interpolator->airX - interpolator->groundX) * rate;
     const double y = interpolator->groundY + (interpolator->airY - interpolator->groundY) * rate;

@@ -152,6 +152,12 @@ bool ReadGlobalAttribute(hid_t fileID, HDFGlobalAttribute* globalAttribute){
 }
 
 hid_t GetDatasetID(hid_t fileID, const char* path){
+    /**
+    @brief Get dataset ID
+    @param fileID: the file ID
+    @param path: the path of the dataset
+    @return the dataset ID
+    */
     hid_t datasetID = H5Dopen(fileID, path, H5P_DEFAULT);
     if (datasetID < 0)
         fprintf(stderr, "Failed to open dataset: %s\n", path);
@@ -159,6 +165,13 @@ hid_t GetDatasetID(hid_t fileID, const char* path){
 }
 
 bool GetRequiredDatasetID(hid_t fileID, const char* bandName, HDFBandRequired* required){
+    /**
+    @brief Get required dataset ID
+    @param fileID: the file ID
+    @param bandName: the name of the band
+    @param required: the required dataset ID
+    @return true if successful, false otherwise
+    */
     required->elevationID = GetDatasetID(fileID, ConstructPath((const char*[]){GEOLOCATION_GROUP_NAME, bandName, "elevation"}, 3));
     if (required->elevationID < 0){
         fprintf(stderr, "Failed to open dataset: %s\n", "elevation");
@@ -467,6 +480,12 @@ bool WriteHDF5(const char* filename, const FinalGrid* dataset, const HDFGlobalAt
 }
 
 bool ConstructFinalGrid(const HDFDataset* dataset, FinalGrid* finalGrid){
+    /**
+    @brief Construct final grid
+    @param dataset: the dataset to construct the final grid
+    @param finalGrid: the final grid to store the data
+    @return true if successful, false otherwise
+    */
     finalGrid->lineCount = dataset->globalAttribute.scanLineCount / 10;
     finalGrid->heightCount = SCAN_HEIGHT_COUNT / 10;
     const int dims[3] = {finalGrid->lineCount, SCAN_ANGLE_COUNT, finalGrid->heightCount};
