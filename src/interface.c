@@ -478,39 +478,3 @@ bool WriteHDF5(const char* filename, const FinalGrid* dataset, const HDFGlobalAt
     H5Fclose(fileID);
     return true;
 }
-
-bool ConstructFinalGrid(const HDFDataset* dataset, FinalGrid* finalGrid){
-    /**
-    @brief Construct final grid
-    @param dataset: the dataset to construct the final grid
-    @param finalGrid: the final grid to store the data
-    @return true if successful, false otherwise
-    */
-    finalGrid->lineCount = dataset->globalAttribute.scanLineCount / 10;
-    finalGrid->heightCount = SCAN_HEIGHT_COUNT / 10;
-    const int dims[3] = {finalGrid->lineCount, SCAN_ANGLE_COUNT, finalGrid->heightCount};
-    const int memSize = dims[0] * dims[1] * dims[2] * sizeof(float);
-    for (int bandIndex = 0; bandIndex < 2; bandIndex++){
-        finalGrid->latitudeArray[bandIndex] = (float*)malloc(memSize);
-        finalGrid->longitudeArray[bandIndex] = (float*)malloc(memSize);
-        finalGrid->elevationArray[bandIndex] = (float*)malloc(memSize);
-        finalGrid->valueArray[bandIndex] = (float*)malloc(memSize);
-        if (!finalGrid->latitudeArray[bandIndex] || !finalGrid->longitudeArray[bandIndex] || !finalGrid->elevationArray[bandIndex] || !finalGrid->valueArray[bandIndex]){
-            fprintf(stderr, "Failed to allocate memory for latitudeArray, longitudeArray, elevationArray or valueArray\n");
-            return false;
-        }
-    }
-    #pragma omp parallel for shared(dataset, finalGrid)
-    for (unsigned int lineIndex = 0; lineIndex < finalGrid->lineCount; lineIndex++)
-        for (int bandIndex = 0; bandIndex < 2; bandIndex++)
-            for (unsigned int angleIndex = 0; angleIndex < SCAN_ANGLE_COUNT; angleIndex++)
-                for (unsigned int heightIndex = 0; heightIndex < finalGrid->heightCount; heightIndex++){
-                    const int index = lineIndex * SCAN_ANGLE_COUNT * finalGrid->heightCount + angleIndex * finalGrid->heightCount + heightIndex;
-                    const int sampleLineIndex = DEBUG_INDEX;
-                    finalGrid->latitudeArray[bandIndex][index] = dataset->infoArray[bandIndex][sampleLineIndex][angleIndex].groundB;
-                    finalGrid->longitudeArray[bandIndex][index] = dataset->infoArray[bandIndex][sampleLineIndex][angleIndex].groundL;
-                    finalGrid->elevationArray[bandIndex][index] = dataset->infoArray[bandIndex][sampleLineIndex][angleIndex].evaluation;
-                    finalGrid->valueArray[bandIndex][index] = dataset->infoArray[bandIndex][sampleLineIndex][angleIndex].measuredArray[heightIndex];
-                }
-    return true;
-}

@@ -5,3 +5,4 @@
 
 void test_geotransfer(void);
 void test_readHDF5(void);
+void test_interpolate(void);
