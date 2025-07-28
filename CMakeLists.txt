@@ -4,6 +4,8 @@ project(FY3G_Resampling C)
 find_package(HDF5 REQUIRED COMPONENTS C)
 find_package(OpenMP REQUIRED)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopenmp")
+set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -g -O0 -Wall -Wextra")
+set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3 -Wall -march=native")
 add_subdirectory(tests/Unity)
 
 include_directories(${HDF5_INCLUDE_DIRS})

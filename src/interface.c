@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <omp.h>
+#define DEBUG_INDEX 3800
 
 GridInfo* CreateGridInfo(unsigned int lineIndex, unsigned int angleIndex) {
     /**
@@ -38,18 +39,24 @@ void DestroyGridInfo(GridInfo* info) {
     }
 }
 
-const char* ConstructPath(const char* pathNames[], const int pathLength){
+char* ConstructPath(const char* pathNames[], const int pathLength){
     /**
     @brief Construct path
     @param pathNames: the names of the path
     @param pathLength: the length of the path
     @return the path
     */
-    char* path = (char*)malloc(255 * sizeof(char));
+    if (pathLength == 0)
+        return NULL;
+    size_t nameLength = 1;
+    for (int i = 0; i < pathLength; i++)
+        nameLength += strlen(pathNames[i]) + 1;
+    char* path = (char*)malloc(nameLength * sizeof(char));
     if (path == NULL){
         fprintf(stderr, "Failed to allocate memory for path\n");
         return NULL;
     }
+    path[0] = '\0';
     for (int i = 0; i < pathLength; i++){
         strcat(path, "/");
         strcat(path, pathNames[i]);
@@ -376,7 +383,7 @@ bool ReadBand(hid_t fileID, const char* bandName, HDFGlobalAttribute* globalAttr
     GridInfo **infoArray = (GridInfo**)malloc(globalAttribute->scanLineCount * sizeof(GridInfo*));
 
     #pragma omp parallel for shared(infoArray, required, globalAttribute)
-    for (int lineIndex = 0; lineIndex < globalAttribute->scanLineCount; lineIndex++){
+    for (int lineIndex = DEBUG_INDEX; lineIndex < globalAttribute->scanLineCount; lineIndex++){
         GridInfo* infoLine = (GridInfo*)malloc(SCAN_ANGLE_COUNT * sizeof(GridInfo));
         if (!infoLine){
             fprintf(stderr, "Failed to allocate memory for infoLine\n");
@@ -401,7 +408,7 @@ bool ReadBand(hid_t fileID, const char* bandName, HDFGlobalAttribute* globalAttr
     H5Dclose(required.valueID);
     H5Dclose(required.binClutterID);
 
-    for (int lineIndex = 0; lineIndex < globalAttribute->scanLineCount; lineIndex++){
+    for (int lineIndex = DEBUG_INDEX; lineIndex < globalAttribute->scanLineCount; lineIndex++){
         for (int angleIndex = 0; angleIndex < SCAN_ANGLE_COUNT; angleIndex++)
             DestroyGridInfo(&infoArray[lineIndex][angleIndex]);
         free(infoArray[lineIndex]);
