@@ -35,7 +35,6 @@ void DestroyGridInfo(GridInfo* info) {
     if (info) {
         free(info->heightArray);
         free(info->measuredArray);
-        free(info);
     }
 }
 
@@ -228,6 +227,11 @@ bool GetRequiredDatasetID(hid_t fileID, const char* bandName, HDFBandRequired* r
         fprintf(stderr, "Failed to open dataset: %s\n", "localZenithAngle");
         return false;
     }
+    required->heightID = GetDatasetID(fileID, ConstructPath((const char*[]){GEOLOCATION_GROUP_NAME, bandName, "height"}, 3));
+    if (required->heightID < 0){
+        fprintf(stderr, "Failed to open dataset: %s\n", "height");
+        return false;
+    }
     required->valueID = GetDatasetID(fileID, ConstructPath((const char*[]){PRE_GROUP_NAME, bandName, "zFactorMeasured"}, 3));
     if (required->valueID < 0){
         fprintf(stderr, "Failed to open dataset: %s\n", "zFactorMeasured");
@@ -292,6 +296,7 @@ bool ReadSingleScanLine(int lineIndex, const HDFBandRequired* required, GridInfo
     float zenith[SCAN_ANGLE_COUNT];
     float value[SCAN_ANGLE_COUNT][SCAN_HEIGHT_COUNT];
     float binClutter[SCAN_ANGLE_COUNT];
+    float height[SCAN_ANGLE_COUNT][SCAN_HEIGHT_COUNT];
     hsize_t offset2D[2] = {lineIndex, 0};
     hsize_t offset3D[3] = {lineIndex, 0, 0};
     hsize_t count2D[2] = {1, SCAN_ANGLE_COUNT};
@@ -321,6 +326,10 @@ bool ReadSingleScanLine(int lineIndex, const HDFBandRequired* required, GridInfo
         fprintf(stderr, "Failed to read value\n");
         success = false;
     }
+    if (!ReadSingleDataset(3, required->heightID, offset3D, count3Dvalue, height)){
+        fprintf(stderr, "Failed to read height\n");
+        success = false;
+    }
     if (!ReadSingleDataset(2, required->binClutterID, offset2D, count2D, binClutter)){
         fprintf(stderr, "Failed to read bin clutter\n");
         success = false;
@@ -336,9 +345,16 @@ bool ReadSingleScanLine(int lineIndex, const HDFBandRequired* required, GridInfo
             infoLine[angleIndex].airB = longitude[angleIndex][1];
             infoLine[angleIndex].zeta = zenith[angleIndex];
             infoLine[angleIndex].evaluation = elevation[angleIndex];
-            infoLine[angleIndex].measuredArray = value[angleIndex];
-            infoLine[angleIndex].heightArray = value[angleIndex];
             infoLine[angleIndex].clutterFreeBottomIndex = binClutter[angleIndex];
+            infoLine[angleIndex].measuredArray = (float*)malloc(SCAN_HEIGHT_COUNT * sizeof(float));
+            infoLine[angleIndex].heightArray = (float*)malloc(SCAN_HEIGHT_COUNT * sizeof(float));
+            if (!infoLine[angleIndex].measuredArray || !infoLine[angleIndex].heightArray){
+                fprintf(stderr, "Failed to allocate memory for measuredArray or heightArray\n");
+                success = false;
+                break;
+            }
+            memcpy(infoLine[angleIndex].measuredArray, value[angleIndex], SCAN_HEIGHT_COUNT * sizeof(float));
+            memcpy(infoLine[angleIndex].heightArray, height[angleIndex], SCAN_HEIGHT_COUNT * sizeof(float));
         }
     }
     return success;
@@ -359,13 +375,20 @@ bool ReadBand(hid_t fileID, const char* bandName, HDFGlobalAttribute* globalAttr
     }
     GridInfo **infoArray = (GridInfo**)malloc(globalAttribute->scanLineCount * sizeof(GridInfo*));
 
-    #pragma omp parallel for
-    {
+    #pragma omp parallel for shared(infoArray, required, globalAttribute)
     for (int lineIndex = 0; lineIndex < globalAttribute->scanLineCount; lineIndex++){
         GridInfo* infoLine = (GridInfo*)malloc(SCAN_ANGLE_COUNT * sizeof(GridInfo));
-        ReadSingleScanLine(lineIndex, &required, infoLine);
+        if (!infoLine){
+            fprintf(stderr, "Failed to allocate memory for infoLine\n");
+            continue;
+        }
+        if (!ReadSingleScanLine(lineIndex, &required, infoLine)){
+            fprintf(stderr, "Failed to read scan line\n");
+            free(infoLine);
+            continue;
+        }
         infoArray[lineIndex] = infoLine;
-    }
+        printf("process %d from thread %d of %d\n", lineIndex, omp_get_thread_num(), omp_get_num_threads());
     }
 
     // free all resources
@@ -381,7 +404,7 @@ bool ReadBand(hid_t fileID, const char* bandName, HDFGlobalAttribute* globalAttr
     for (int lineIndex = 0; lineIndex < globalAttribute->scanLineCount; lineIndex++){
         for (int angleIndex = 0; angleIndex < SCAN_ANGLE_COUNT; angleIndex++)
             DestroyGridInfo(&infoArray[lineIndex][angleIndex]);
-        DestroyGridInfo(infoArray[lineIndex]);
+        free(infoArray[lineIndex]);
     }
     free(infoArray);
     return true;
