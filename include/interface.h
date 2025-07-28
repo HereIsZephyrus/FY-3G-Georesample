@@ -32,6 +32,7 @@ void DestroyGridInfo(GridInfo* info);
 
 DateTime CreateDateTime(const char* date, const char* time);
 
+int getNumber(const char* str, int length);
 bool ReadHDF5(const char* filename);
 bool ReadSingleAttribute(hid_t fileID, const char* attributeName, hid_t typeID, void* buffer);
 bool ReadGlobalAttribute(hid_t fileID, HDFGlobalAttribute* globalAttribute);
