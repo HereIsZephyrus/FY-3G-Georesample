@@ -34,7 +34,7 @@ typedef struct {
 typedef struct {
     unsigned int lineCount, heightCount;
     float *latitudeArray[2], *longitudeArray[2], *elevationArray[2], *valueArray[2]; // [bandIndex][[lineCount][angleCount][heightCount]]
-} FinalGrid;
+} GeodeticGrid;
 
 typedef struct {
     hid_t elevationID, latitudeID, longitudeID, zenithID, heightID, groundHeightID, valueID, binClutterID;
@@ -46,5 +46,5 @@ char* ConstructDateTimeString(const DateTime* dateTime);
 
 void DestroyGridInfo(GridInfo* info);
 void DestroyHDFDataset(HDFDataset* dataset);
-void DestroyFinalGrid(FinalGrid* finalGrid);
+void DestroyFinalGrid(GeodeticGrid* finalGrid);
 #endif

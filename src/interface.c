@@ -372,7 +372,7 @@ bool ReadBand(hid_t fileID, const char* bandName, HDFGlobalAttribute* globalAttr
     return true;
 }
 
-bool WriteHDF5(const char* filename, const FinalGrid* dataset, const HDFGlobalAttribute* globalAttribute){
+bool WriteHDF5(const char* filename, const GeodeticGrid* dataset, const HDFGlobalAttribute* globalAttribute){
     /**
     @brief Write HDF5 file
     @param filename: the name of the HDF5 file

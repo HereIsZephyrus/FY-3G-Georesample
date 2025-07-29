@@ -24,6 +24,7 @@ set(TEST_FILES
 
 set(SOURCE_FILES
     src/interface.c
+    src/interpolate.c
     src/networking.c
     src/geotransfer.c
     src/data.c

@@ -53,7 +53,7 @@ bool IsGeodeticValid(const double latitude, const double longitude, const double
         fprintf(stderr, "Longitude out of range: %f\n", longitude);
         return false;
     }
-    if (height < -100){
+    if (height < -100 || height > 200000){
         fprintf(stderr, "Height out of range: %f\n", height);
         return false;
     }

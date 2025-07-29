@@ -12,5 +12,5 @@ bool ReadBand(hid_t fileID, const char* bandName, HDFGlobalAttribute* globalAttr
 bool ReadSingleScanLine(int lineIndex, const HDFBandRequired* required, GridInfo* infoLine);
 bool ReadSingleDataset(int rank, hid_t datasetID, hsize_t* offset, hsize_t* count, void* buffer);
 char* ConstructPath(const char* pathNames[], const int pathLength);
-bool WriteHDF5(const char* filename, const FinalGrid* finalGrid, const HDFGlobalAttribute* globalAttribute);
+bool WriteHDF5(const char* filename, const GeodeticGrid* finalGrid, const HDFGlobalAttribute* globalAttribute);
 #endif

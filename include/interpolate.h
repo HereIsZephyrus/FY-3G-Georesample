@@ -14,5 +14,5 @@ typedef struct {
 CartesianInterpolator calcInterParams(  const double groundX, const double groundY, const double groundZ, const double groundH,
                                         const double latitude, const double longitude, const double zeta);
 
-Coordinate calcCartesian(const CartesianInterpolator *interpolator);
+Coordinate calcCartesian(const CartesianInterpolator *interpolator, const float queryHeight);
 #endif

@@ -24,7 +24,7 @@ void DestroyHDFDataset(HDFDataset* dataset){
     }
 }
 
-void DestroyFinalGrid(FinalGrid* finalGrid){
+void DestroyFinalGrid(GeodeticGrid* finalGrid){
     for (int bandIndex = 0; bandIndex < 2; bandIndex++){
         free(finalGrid->latitudeArray[bandIndex]);
         free(finalGrid->longitudeArray[bandIndex]);
