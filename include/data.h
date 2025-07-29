@@ -43,6 +43,7 @@ typedef struct {
 DateTime CreateDateTime(const char* date, const char* time);
 int getNumber(const char* str, int length);
 char* ConstructDateTimeString(const DateTime* dateTime);
+bool InitGeodeticGrid(GeodeticGrid* finalGrid, const int lineCount, const int heightCount);
 
 void DestroyGridInfo(GridInfo* info);
 void DestroyHDFDataset(HDFDataset* dataset);

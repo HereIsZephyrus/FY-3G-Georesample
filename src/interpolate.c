@@ -67,3 +67,52 @@ Coordinate calcCartesian(const CartesianInterpolator *interpolator, const float 
     const double z = interpolator->groundZ + (interpolator->airZ - interpolator->groundZ) * rate;
     return TransferCartesianToGeodetic(x, y, z, false);
 }
+
+bool InitFlatGrid(const HDFDataset* dataset, const int gridSize, float latitude[], float longitude[]){
+    /**
+     * @brief Initialize the flat grid
+     * @param dataset: the dataset
+     * @param gridSize: the flat grid size(m)
+     * @param latitude: the latitude array
+     * @param longitude: the longitude array
+     * @return true if successful, false otherwise
+     */
+     return true;
+}
+bool InitGridHeight(float *const latitude[], float *const longitude[], const int initHeight, const int heightGap, const int heightCount, GeodeticGrid* finalGrid){
+    /**
+     * @brief Initialize the grid height
+     * @param latitude: the latitude array
+     * @param longitude: the longitude array
+     * @param initHeight: the initial height
+     * @param heightGap: the height gap
+     * @param heightCount: the height count
+     * @param finalGrid: the final grid to store the data
+     * @return true if successful, false otherwise
+     */
+    return true;
+}
+bool InitFinalGrid(const HDFDataset* dataset, int gridSize, int initHeight, const int heightGap, const int heightCount, GeodeticGrid* finalGrid){
+    /**
+     * @brief Initialize the final grid
+     * @param dataset: the dataset
+     * @param gridSize: the flat grid size(m)
+     * @param initHeight: the initial height(m)
+     * @param heightGap: the height gap(m)
+     * @param heightCount: the height count
+     * @param finalGrid: the final grid to store the data
+     * @return true if successful, false otherwise
+     */
+    float *latitude[2], *longitude[2];
+    for (int bandIndex = 0; bandIndex < 2; bandIndex++){
+        if (!InitFlatGrid(dataset, gridSize, latitude[bandIndex], longitude[bandIndex])){
+            fprintf(stderr, "Failed to initialize flat grid of band %d\n", bandIndex);
+            return false;
+        }
+    }
+    if (!InitGridHeight(latitude, longitude, initHeight, heightGap, heightCount, finalGrid)){
+        fprintf(stderr, "Failed to initialize grid height\n");
+        return false;
+    }
+    return true;
+}

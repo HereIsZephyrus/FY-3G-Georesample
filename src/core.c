@@ -3,29 +3,6 @@
 #include "interpolate.h"
 #include "geotransfer.h"
 
-bool InitFinalGrid(const HDFDataset* dataset, GeodeticGrid* finalGrid, const int heightCount){
-    /**
-    @brief Initialize the final grid
-    @param finalGrid: the final grid to initialize
-    @return true if successful, false otherwise
-    */
-    finalGrid->lineCount = dataset->globalAttribute.scanLineCount;
-    finalGrid->heightCount = heightCount;
-    const int dims[3] = {finalGrid->lineCount, SCAN_ANGLE_COUNT, finalGrid->heightCount};
-    const int memSize = dims[0] * dims[1] * dims[2] * sizeof(float);
-    for (int bandIndex = 0; bandIndex < 2; bandIndex++){
-        finalGrid->latitudeArray[bandIndex] = (float*)malloc(memSize);
-        finalGrid->longitudeArray[bandIndex] = (float*)malloc(memSize);
-        finalGrid->elevationArray[bandIndex] = (float*)malloc(memSize);
-        finalGrid->valueArray[bandIndex] = (float*)malloc(memSize);
-        if (!finalGrid->latitudeArray[bandIndex] || !finalGrid->longitudeArray[bandIndex] || !finalGrid->elevationArray[bandIndex] || !finalGrid->valueArray[bandIndex]){
-            fprintf(stderr, "Failed to allocate memory for latitudeArray, longitudeArray, elevationArray or valueArray\n");
-            return false;
-        }
-    }
-    return true;
-}
-
 void CalculateGridData(const GridInfo* sampleGridInfo, GeodeticGrid* finalGrid, unsigned int bandIndex, unsigned int lineIndex, unsigned int angleIndex){
     /**
     @brief Calculate the interpolation
@@ -56,7 +33,7 @@ bool ProcessDataset(const HDFDataset* dataset, GeodeticGrid* finalGrid){
     @param finalGrid: the final grid to store the data
     @return true if successful, false otherwise
     */
-    if (!InitFinalGrid(dataset, finalGrid, SCAN_HEIGHT_COUNT)){
+    if (!InitGeodeticGrid(finalGrid, dataset->globalAttribute.scanLineCount, SCAN_HEIGHT_COUNT)){
         fprintf(stderr, "Failed to initialize final grid\n");
         return false;
     }
