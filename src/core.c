@@ -47,3 +47,22 @@ bool ProcessDataset(const HDFDataset* dataset, GeodeticGrid* finalGrid){
     }
     return true;
 }
+
+bool Interpolate(const HDFDataset* dataset, const GeodeticGrid* processedGrid, ClipGridResult* finalGrid){
+    /**
+    @brief Interpolate the data
+    @param dataset: the dataset to interpolate the data
+    @param processedGrid: the processed grid to interpolate the data
+    @param finalGrid: the final grid to store the data
+    @return true if successful, false otherwise
+    */
+    if (!InitClipGridArray(dataset, DEFAULT_GRID_SIZE, DEFAULT_MINIMAL_HEIGHT, DEFAULT_HEIGHT_GAP, DEFAULT_HEIGHT_COUNT, finalGrid)){
+        fprintf(stderr, "Failed to initialize final grid\n");
+        return false;
+    }
+    const unsigned int clipCount = finalGrid->clipCount;
+    for (int bandIndex = 0; bandIndex < 2; bandIndex++){
+        
+    }
+    return true;
+}

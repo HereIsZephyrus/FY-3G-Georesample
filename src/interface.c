@@ -360,7 +360,7 @@ bool ReadBand(hid_t fileID, const char* bandName, HDFGlobalAttribute* globalAttr
     if (!InitBatchReadContext(&ctxfull, BATCH_SIZE) || !InitBatchReadContext(&ctxrest, restBatchSize))
         success = false;
     else {
-        #pragma omp for schedule(dynamic)
+        //#pragma omp parallel for
         for (hsize_t batchIdx = 0; batchIdx < numBatches; batchIdx++) {
             hsize_t startLine = batchIdx * BATCH_SIZE;
             if (startLine + BATCH_SIZE > totalLines){

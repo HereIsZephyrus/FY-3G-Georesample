@@ -1,6 +1,7 @@
 #ifndef INTERFACE_H
 #define INTERFACE_H
-#define BATCH_SIZE 100
+#define BATCH_SIZE 500
+
 #include <hdf5.h>
 #include "data.h"
 

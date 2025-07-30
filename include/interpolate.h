@@ -1,5 +1,8 @@
 #ifndef INTERPOLATE_H
 #define INTERPOLATE_H
+#define DEFAULT_GRID_SIZE 5000 // 5000m
+#define DEFAULT_MINIMAL_HEIGHT 100 // 100m
+#define DEFAULT_HEIGHT_GAP 200 // 200m
 #define DEFAULT_HEIGHT_COUNT 60
 
 #include <stddef.h>

@@ -5,4 +5,5 @@
 
 bool ProcessDataset(const HDFDataset* dataset, GeodeticGrid* finalGrid);
 void CalculateGridData(const GridInfo* dataset, GeodeticGrid* finalGrid, unsigned int bandIndex, unsigned int lineIndex, unsigned int angleIndex);
+bool Interpolate(const HDFDataset* dataset, const GeodeticGrid* processedGrid, ClipGridResult* finalGrid);
 #endif
