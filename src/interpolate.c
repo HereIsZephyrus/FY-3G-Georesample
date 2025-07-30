@@ -88,24 +88,14 @@ bool GetGeodeticRange(GridInfo** const infoArray, const int lineCount, float *ma
 }
 
 unsigned int SearchLineIndex(const float latitude, unsigned int bias,GridInfo** const infoArray, unsigned int left, unsigned int right){
-    /**
-     * @brief Binary search the line index by latitude to find the minimum line index that is greater than or equal to the latitude
-     * @param latitude: the latitude
-     * @param bias: the bias
-     * @param infoArray: the info array
-     * @param left: the left index
-     * @param right: the right index
-     * @return the line index
-     */
     if (left == right) return left;
-    const unsigned int mid = (left + right) / 2;
+    const unsigned int mid = left + (right - left) / 2;
     const float midLatitude = infoArray[mid][bias].groundB;
     if (midLatitude < latitude) return SearchLineIndex(latitude, bias, infoArray, mid + 1, right);
-    else if (midLatitude > latitude) return SearchLineIndex(latitude, bias, infoArray, left, mid);
-    else return mid;
-    return left;
+    else return SearchLineIndex(latitude, bias, infoArray, left, mid);
 }
-float QueryClipMaxLongitude(const float minClipLatitude, const float maxClipLatitude, GridInfo** const infoArray, const int lineCount){
+
+float QueryClipMaxLongitude(const float minClipLatitude, const float maxClipLatitude, GridInfo** const infoArray, const unsigned int lineCount){
     /**
      * @brief Query the maximum longitude of the clip
      * @param minClipLatitude: the minimum latitude of the clip
@@ -118,6 +108,7 @@ float QueryClipMaxLongitude(const float minClipLatitude, const float maxClipLati
     const float centerClipLatitude = (minClipLatitude + maxClipLatitude) / 2;
     unsigned int leftLineIndex = fmin(SearchLineIndex(centerClipLatitude, 0, infoArray, 0, lineCount), SearchLineIndex(centerClipLatitude, SCAN_ANGLE_COUNT - 1, infoArray, 0, lineCount));
     unsigned int rightLineIndex = fmax(SearchLineIndex(maxClipLatitude, 0, infoArray, 0, lineCount), SearchLineIndex(maxClipLatitude, SCAN_ANGLE_COUNT - 1, infoArray, 0, lineCount));
+    if (rightLineIndex == lineCount) rightLineIndex--;
     for (unsigned int lineIndex = leftLineIndex; lineIndex <= rightLineIndex; lineIndex++){
         for (unsigned int angleIndex = 0; angleIndex < SCAN_ANGLE_COUNT; angleIndex++){
             if (infoArray[lineIndex][angleIndex].groundB < minClipLatitude || infoArray[lineIndex][angleIndex].groundB > maxClipLatitude)
@@ -138,7 +129,7 @@ bool InitClipGridArray(const HDFDataset* dataset, int gridSize, int initHeight, 
      * @param finalGrid: the final grid to store the data
      * @return true if successful, false otherwise
      */
-    const int lineCount = dataset->globalAttribute.scanLineCount;
+    const unsigned int lineCount = dataset->globalAttribute.scanLineCount;
     const float latitudeGap = (float)gridSize * 180.0f / (M_PI * WGS84_B);
     for (int bandIndex = 0; bandIndex < 2; bandIndex++){
         float globalMaxLatitude, globalMinLatitude, globalMaxLongitude, globalMinLongitude; // longitude is wrapped

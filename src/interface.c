@@ -356,31 +356,28 @@ bool ReadBand(hid_t fileID, const char* bandName, HDFGlobalAttribute* globalAttr
     const hsize_t restBatchSize = totalLines % BATCH_SIZE;
     
     bool success = true;
-    #pragma omp parallel
-    {
-        BatchReadContext ctxfull, ctxrest;
-        if (!InitBatchReadContext(&ctxfull, BATCH_SIZE) || !InitBatchReadContext(&ctxrest, restBatchSize))
-            success = false;
-        else {
-            #pragma omp for schedule(dynamic)
-            for (hsize_t batchIdx = 0; batchIdx < numBatches; batchIdx++) {
-                hsize_t startLine = batchIdx * BATCH_SIZE;
-                if (startLine + BATCH_SIZE > totalLines){
-                    if (!ReadBatchScanLines(startLine, totalLines - startLine, &required, &ctxrest, infoArray)) {
-                        fprintf(stderr, "Failed to read batch starting at line %lu\n", startLine);
-                        success = false;
-                    }
-                }
-                else {
-                    if (!ReadBatchScanLines(startLine, BATCH_SIZE, &required, &ctxfull, infoArray)) {
-                        fprintf(stderr, "Failed to read batch starting at line %lu\n", startLine);
-                        success = false;
-                    }
+    BatchReadContext ctxfull, ctxrest;
+    if (!InitBatchReadContext(&ctxfull, BATCH_SIZE) || !InitBatchReadContext(&ctxrest, restBatchSize))
+        success = false;
+    else {
+        #pragma omp for schedule(dynamic)
+        for (hsize_t batchIdx = 0; batchIdx < numBatches; batchIdx++) {
+            hsize_t startLine = batchIdx * BATCH_SIZE;
+            if (startLine + BATCH_SIZE > totalLines){
+                if (!ReadBatchScanLines(startLine, totalLines - startLine, &required, &ctxrest, infoArray)) {
+                    fprintf(stderr, "Failed to read batch starting at line %lu\n", startLine);
+                    success = false;
                 }
             }
-            DestroyBatchReadContext(&ctxfull);
-            DestroyBatchReadContext(&ctxrest);
+            else {
+                if (!ReadBatchScanLines(startLine, BATCH_SIZE, &required, &ctxfull, infoArray)) {
+                    fprintf(stderr, "Failed to read batch starting at line %lu\n", startLine);
+                    success = false;
+                }
+            }
         }
+        DestroyBatchReadContext(&ctxfull);
+        DestroyBatchReadContext(&ctxrest);
     }
 
     // free all resources

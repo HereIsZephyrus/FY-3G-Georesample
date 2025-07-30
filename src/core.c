@@ -39,7 +39,7 @@ bool ProcessDataset(const HDFDataset* dataset, GeodeticGrid* finalGrid){
     }
     for (int bandIndex = 0; bandIndex < 2; bandIndex++){
         #pragma omp parallel for shared(dataset, finalGrid, bandIndex)
-        for (unsigned int lineIndex = DEBUG_INDEX; lineIndex < finalGrid->lineCount; lineIndex++)
+        for (unsigned int lineIndex = 0; lineIndex < finalGrid->lineCount; lineIndex++)
             for (unsigned int angleIndex = 0; angleIndex < SCAN_ANGLE_COUNT; angleIndex++){
                 CalculateGridData( &dataset->infoArray[bandIndex][lineIndex][angleIndex], 
                                         finalGrid, bandIndex, lineIndex, angleIndex);

@@ -5,7 +5,6 @@
 #define MAX_LONGITUDE_WIDTH 6 // 6 degrees
 #define GEOLOCATION_GROUP_NAME "Geolocation"
 #define PRE_GROUP_NAME "PRE"
-#define DEBUG_INDEX 0
 #include <stdlib.h>
 #include <hdf5.h>
 

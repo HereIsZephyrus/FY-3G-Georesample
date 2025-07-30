@@ -5,17 +5,17 @@
 const char* BAND_NAMES[2] = {"Ka", "Ku"};
 
 void DestroyGridInfo(GridInfo* info) {
-    if (info) {
-        if (info->heightArray)
-            free(info->heightArray);
-        if (info->measuredArray)
-            free(info->measuredArray);
-    }
+    if (!info) return;
+    if (info->heightArray)
+        free(info->heightArray);
+    if (info->measuredArray)
+        free(info->measuredArray);
 }
 
 void DestroyHDFDataset(HDFDataset* dataset){
+    if (!dataset) return;
     for (int bandIndex = 0; bandIndex < 2; bandIndex++){
-        for (unsigned int lineIndex = DEBUG_INDEX; lineIndex < dataset->globalAttribute.scanLineCount; lineIndex++){
+        for (unsigned int lineIndex = 0; lineIndex < dataset->globalAttribute.scanLineCount; lineIndex++){
             for (int angleIndex = 0; angleIndex < SCAN_ANGLE_COUNT; angleIndex++)
                 DestroyGridInfo(&dataset->infoArray[bandIndex][lineIndex][angleIndex]);
             free(dataset->infoArray[bandIndex][lineIndex]);
@@ -25,6 +25,7 @@ void DestroyHDFDataset(HDFDataset* dataset){
 }
 
 void DestroyFinalGrid(GeodeticGrid* finalGrid){
+    if (!finalGrid) return;
     for (int bandIndex = 0; bandIndex < 2; bandIndex++){
         free(finalGrid->latitudeArray[bandIndex]);
         free(finalGrid->longitudeArray[bandIndex]);
@@ -83,6 +84,7 @@ bool InitGeodeticGrid(GeodeticGrid* finalGrid, const int lineCount, const int he
 }
 
 void DestroyClipGridResult(ClipGridResult* clipGridResult){
+    if (!clipGridResult) return;
     for (int bandIndex = 0; bandIndex < 2; bandIndex++){
         if (clipGridResult->clipGrids[bandIndex]){
             for (unsigned int clipIndex = 0; clipIndex < clipGridResult->clipCount; clipIndex++)
@@ -91,5 +93,4 @@ void DestroyClipGridResult(ClipGridResult* clipGridResult){
             free(clipGridResult->clipGrids[bandIndex]);
         }
     }
-    free(clipGridResult);
 }
