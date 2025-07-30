@@ -81,3 +81,15 @@ bool InitGeodeticGrid(GeodeticGrid* finalGrid, const int lineCount, const int he
     }
     return true;
 }
+
+void DestroyClipGridResult(ClipGridResult* clipGridResult){
+    for (int bandIndex = 0; bandIndex < 2; bandIndex++){
+        if (clipGridResult->clipGrids[bandIndex]){
+            for (unsigned int clipIndex = 0; clipIndex < clipGridResult->clipCount; clipIndex++)
+                if (clipGridResult->clipGrids[bandIndex][clipIndex].value)
+                    free(clipGridResult->clipGrids[bandIndex][clipIndex].value);
+            free(clipGridResult->clipGrids[bandIndex]);
+        }
+    }
+    free(clipGridResult);
+}

@@ -1,5 +1,7 @@
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "data.h"
 #include "interpolate.h"
 #include "geotransfer.h"
 
@@ -68,33 +70,45 @@ Coordinate calcCartesian(const CartesianInterpolator *interpolator, const float 
     return TransferCartesianToGeodetic(x, y, z, false);
 }
 
-bool InitFlatGrid(const HDFDataset* dataset, const int gridSize, float latitude[], float longitude[]){
-    /**
-     * @brief Initialize the flat grid
-     * @param dataset: the dataset
-     * @param gridSize: the flat grid size(m)
-     * @param latitude: the latitude array
-     * @param longitude: the longitude array
-     * @return true if successful, false otherwise
-     */
-     return true;
-}
-bool InitGridHeight(float *const latitude[], float *const longitude[], const int initHeight, const int heightGap, const int heightCount, GeodeticGrid* finalGrid){
-    /**
-     * @brief Initialize the grid height
-     * @param latitude: the latitude array
-     * @param longitude: the longitude array
-     * @param initHeight: the initial height
-     * @param heightGap: the height gap
-     * @param heightCount: the height count
-     * @param finalGrid: the final grid to store the data
-     * @return true if successful, false otherwise
-     */
+bool GetGeodeticRange(GridInfo** const infoArray, const int lineCount, float *maxLatitude, float *minLatitude, float *maxLongitude, float *minLongitude){
+    *maxLatitude = -90, *minLatitude = 90, *maxLongitude = -180, *minLongitude = 180;
+    const bool isIncreasingLongitude = infoArray[0][0].groundL < infoArray[1][0].groundL; // to check if the longitude is increasing
+    const float firstLongitude = infoArray[0][0].groundL; // to check if the longitude will over 180 after wrap
+    for (int lineIndex = 0; lineIndex < lineCount; lineIndex++){
+        for (int angleIndex = 0; angleIndex < SCAN_ANGLE_COUNT; angleIndex++){
+            const float latitude = infoArray[lineIndex][angleIndex].groundB;
+            float longitude = infoArray[lineIndex][angleIndex].groundL;
+            if (isIncreasingLongitude){
+                if (longitude < firstLongitude) longitude += 360; // wrap to 0-360 to keep it monotonic
+            }
+            else{
+                if (longitude > firstLongitude) longitude -= 360;  // wrap to -360-0 to keep it monotonic
+            }
+            if (latitude > *maxLatitude) *maxLatitude = latitude;
+            if (latitude < *minLatitude) *minLatitude = latitude;
+            if (longitude > *maxLongitude) *maxLongitude = longitude;
+            if (longitude < *minLongitude) *minLongitude = longitude;
+        }
+    }
     return true;
 }
-bool InitFinalGrid(const HDFDataset* dataset, int gridSize, int initHeight, const int heightGap, const int heightCount, GeodeticGrid* finalGrid){
+bool InitFlatGrid(GridInfo** const infoArray, const int lineCount, const int gridSize, float latitude[], float longitude[]){
+    const float latitudeGap = (float)gridSize * 180.0f / (M_PI * WGS84_B), longitudeGap = (float)gridSize * 180.0f / (M_PI * WGS84_A * cos(ToRadians(maxLatitude)));
+    const unsigned int latitudeCount = (maxLatitude - minLatitude) / latitudeGap, longitudeCount = (maxLongitude - minLongitude) / longitudeGap;
+    latitude = (float*)malloc(latitudeCount * sizeof(float));
+    longitude = (float*)malloc(longitudeCount * sizeof(float));
+    for (unsigned int i = 0; i < latitudeCount; i++){
+        latitude[i] = minLatitude + i * latitudeGap;
+    }   
+    
+    return true;
+}
+bool InitGridHeight(float *const latitude[], float *const longitude[], const int initHeight, const int heightGap, const int heightCount, GeodeticGrid* finalGrid){
+    return true;
+}
+bool InitClipGridArray(const HDFDataset* dataset, int gridSize, int initHeight, const int heightGap, const int heightCount, ClipGridResult* finalGrid){
     /**
-     * @brief Initialize the final grid
+     * @brief Initialize the (final) clip grid array
      * @param dataset: the dataset
      * @param gridSize: the flat grid size(m)
      * @param initHeight: the initial height(m)
@@ -103,9 +117,23 @@ bool InitFinalGrid(const HDFDataset* dataset, int gridSize, int initHeight, cons
      * @param finalGrid: the final grid to store the data
      * @return true if successful, false otherwise
      */
+    const int lineCount = dataset->globalAttribute.scanLineCount;
+    const float latitudeGap = (float)gridSize * 180.0f / (M_PI * WGS84_B);
     float *latitude[2], *longitude[2];
     for (int bandIndex = 0; bandIndex < 2; bandIndex++){
-        if (!InitFlatGrid(dataset, gridSize, latitude[bandIndex], longitude[bandIndex])){
+        float globalMaxLatitude, globalMinLatitude, globalMaxLongitude, globalMinLongitude; // longitude is wrapped
+        GetGeodeticRange(dataset->infoArray[bandIndex], lineCount, &globalMaxLatitude, &globalMinLatitude, &globalMaxLongitude, &globalMinLongitude);
+        finalGrid->clipCount = (globalMaxLatitude - globalMinLatitude) / MAX_LONGITUDE_WIDTH + 1;
+        finalGrid->clipGrids[bandIndex] = (ClipGrid*)malloc(finalGrid->clipCount * sizeof(ClipGrid));
+        const float readlClipGap = (globalMaxLatitude - globalMinLatitude) / finalGrid->clipCount;
+        for (unsigned int clipIndex = 0; clipIndex < finalGrid->clipCount; clipIndex++){
+            const float minClipLatitude = globalMinLatitude + clipIndex * readlClipGap;
+            const float maxClipLatitude = minClipLatitude + readlClipGap;
+            const float centerClipLatitude = (minClipLatitude + maxClipLatitude) / 2;
+
+        }
+        
+        if (!InitFlatGrid(dataset->infoArray[bandIndex], lineCount, gridSize, latitude[bandIndex], longitude[bandIndex])){
             fprintf(stderr, "Failed to initialize flat grid of band %d\n", bandIndex);
             return false;
         }

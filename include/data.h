@@ -2,6 +2,7 @@
 #define DATA_H
 #define SCAN_ANGLE_COUNT 59
 #define SCAN_HEIGHT_COUNT 500
+#define MAX_LONGITUDE_WIDTH 6 // 6 degrees
 #define GEOLOCATION_GROUP_NAME "Geolocation"
 #define PRE_GROUP_NAME "PRE"
 #define DEBUG_INDEX 3850
@@ -37,6 +38,20 @@ typedef struct {
 } GeodeticGrid;
 
 typedef struct {
+    unsigned int xCount, yCount;
+    float maxLatitude, minLatitude, maxLongitude, minLongitude;
+    float latitudeGap, longitudeGap;
+    int initHeight, heightGap, heightCount;
+    float*** value;
+} ClipGrid;
+
+typedef struct{
+    unsigned int clipCount;
+    ClipGrid* clipGrids[2];
+    HDFGlobalAttribute globalAttribute;
+} ClipGridResult;
+
+typedef struct {
     hid_t elevationID, latitudeID, longitudeID, zenithID, heightID, groundHeightID, valueID, binClutterID;
 } HDFBandRequired;
 
@@ -48,4 +63,5 @@ bool InitGeodeticGrid(GeodeticGrid* finalGrid, const int lineCount, const int he
 void DestroyGridInfo(GridInfo* info);
 void DestroyHDFDataset(HDFDataset* dataset);
 void DestroyFinalGrid(GeodeticGrid* finalGrid);
+void DestroyClipGridResult(ClipGridResult* clipGridResult);
 #endif
