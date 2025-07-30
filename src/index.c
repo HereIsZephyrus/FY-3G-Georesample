@@ -210,7 +210,6 @@ void AVLNodeRangeQuery(AVLNode *node, float latMin, float latMax, const float *l
     
     if (node->value > latMin)
         AVLNodeRangeQuery(node->left, latMin, latMax, longitudeArray, lonMin, lonMax, result, count, capacity);
-    
     if (node->value < latMax)
         AVLNodeRangeQuery(node->right, latMin, latMax, longitudeArray, lonMin, lonMax, result, count, capacity);
 }

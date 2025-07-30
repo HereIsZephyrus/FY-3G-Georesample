@@ -12,7 +12,8 @@ void test_comprehensive(void){
     TEST_ASSERT_TRUE(ProcessDataset(&dataset, &processedGrid));
     TEST_MESSAGE("Process dataset successfully");
     ClipGridResult finalGrid;
-    TEST_ASSERT_TRUE(Interpolate(&dataset, &processedGrid, &finalGrid));
+    AVLTree *indexTree[2] = {NULL, NULL};
+    TEST_ASSERT_TRUE(Interpolate(&dataset, &processedGrid, indexTree, &finalGrid));
     TEST_MESSAGE("Interpolate successfully");
     DestroyHDFDataset(&dataset);
     DestroyFinalGrid(&processedGrid);
