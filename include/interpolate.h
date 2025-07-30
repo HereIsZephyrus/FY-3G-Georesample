@@ -21,4 +21,5 @@ Coordinate calcCartesian(const CartesianInterpolator *interpolator, const float 
 bool GetGeodeticRange(GridInfo** const infoArray, const int lineCount, float *maxLatitude, float *minLatitude, float *maxLongitude, float *minLongitude);
 bool InitClipGridArray(const HDFDataset* dataset, const int gridSize, const int initHeight, const int heightGap, const int heightCount, ClipGridResult* finalGrid);
 float QueryClipMaxLongitude(const float minClipLatitude, const float maxClipLatitude, GridInfo** const infoArray, const int lineCount);
+unsigned int SearchLineIndex(const float latitude, unsigned int bias,GridInfo** const infoArray, unsigned int left, unsigned int right);
 #endif

@@ -364,7 +364,7 @@ bool ReadBand(hid_t fileID, const char* bandName, HDFGlobalAttribute* globalAttr
             continue;
         }
         infoArray[lineIndex] = infoLine;
-        printf("process %d from thread %d of %d\n", lineIndex, omp_get_thread_num(), omp_get_num_threads());
+        //printf("process %d from thread %d of %d\n", lineIndex, omp_get_thread_num(), omp_get_num_threads());
     }
 
     // free all resources

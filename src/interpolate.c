@@ -86,12 +86,43 @@ bool GetGeodeticRange(GridInfo** const infoArray, const int lineCount, float *ma
     }
     return true;
 }
+
+unsigned int SearchLineIndex(const float latitude, unsigned int bias,GridInfo** const infoArray, unsigned int left, unsigned int right){
+    /**
+     * @brief Binary search the line index by latitude to find the minimum line index that is greater than or equal to the latitude
+     * @param latitude: the latitude
+     * @param bias: the bias
+     * @param infoArray: the info array
+     * @param left: the left index
+     * @param right: the right index
+     * @return the line index
+     */
+    if (left == right) return left;
+    const unsigned int mid = (left + right) / 2;
+    const float midLatitude = infoArray[mid][bias].groundB;
+    if (midLatitude < latitude) return SearchLineIndex(latitude, bias, infoArray, mid + 1, right);
+    else if (midLatitude > latitude) return SearchLineIndex(latitude, bias, infoArray, left, mid);
+    else return mid;
+    return left;
+}
 float QueryClipMaxLongitude(const float minClipLatitude, const float maxClipLatitude, GridInfo** const infoArray, const int lineCount){
+    /**
+     * @brief Query the maximum longitude of the clip
+     * @param minClipLatitude: the minimum latitude of the clip
+     * @param maxClipLatitude: the maximum latitude of the clip
+     * @param infoArray: the info array
+     * @param lineCount: the line count
+     * @return the maximum longitude of the clip
+     */
     float maxLongitude = -180;
-    for (int lineIndex = 0; lineIndex < lineCount; lineIndex++){
-        for (int angleIndex = 0; angleIndex < SCAN_ANGLE_COUNT; angleIndex++){
-            const float longitude = infoArray[lineIndex][angleIndex].groundL;
-            if (longitude > maxLongitude) maxLongitude = longitude;
+    const float centerClipLatitude = (minClipLatitude + maxClipLatitude) / 2;
+    unsigned int leftLineIndex = fmin(SearchLineIndex(centerClipLatitude, 0, infoArray, 0, lineCount), SearchLineIndex(centerClipLatitude, SCAN_ANGLE_COUNT - 1, infoArray, 0, lineCount));
+    unsigned int rightLineIndex = fmax(SearchLineIndex(maxClipLatitude, 0, infoArray, 0, lineCount), SearchLineIndex(maxClipLatitude, SCAN_ANGLE_COUNT - 1, infoArray, 0, lineCount));
+    for (unsigned int lineIndex = leftLineIndex; lineIndex <= rightLineIndex; lineIndex++){
+        for (unsigned int angleIndex = 0; angleIndex < SCAN_ANGLE_COUNT; angleIndex++){
+            if (infoArray[lineIndex][angleIndex].groundB < minClipLatitude || infoArray[lineIndex][angleIndex].groundB > maxClipLatitude)
+                continue;
+            maxLongitude = fmax(maxLongitude, infoArray[lineIndex][angleIndex].groundL);
         }
     }
     return maxLongitude;
@@ -119,6 +150,9 @@ bool InitClipGridArray(const HDFDataset* dataset, int gridSize, int initHeight, 
         float minClipLongitude = globalMinLongitude;
         for (unsigned int clipIndex = 0; clipIndex < finalGrid->clipCount; clipIndex++){
             ClipGrid* clipGrid = &finalGrid->clipGrids[bandIndex][clipIndex];
+            clipGrid->minHeight = initHeight;
+            clipGrid->heightGap = heightGap;
+            clipGrid->heightCount = heightCount;
             clipGrid->minLatitude = globalMinLatitude + clipIndex * realClipLatitudeGap;
             clipGrid->maxLatitude = clipGrid->minLatitude + realClipLatitudeGap;
             clipGrid->latitudeGap = realClipLatitudeGap;
@@ -128,11 +162,8 @@ bool InitClipGridArray(const HDFDataset* dataset, int gridSize, int initHeight, 
             clipGrid->longitudeGap = (float)gridSize * 180.0f / (M_PI * WGS84_A * cos(ToRadians(centerClipLatitude)));
             clipGrid->maxLongitude = QueryClipMaxLongitude(clipGrid->minLatitude, clipGrid->maxLatitude, dataset->infoArray[bandIndex], lineCount);
             clipGrid->longitudeCount = ceil((clipGrid->maxLongitude - clipGrid->minLongitude) / clipGrid->longitudeGap);
-            clipGrid->minHeight = initHeight;
-            clipGrid->heightGap = heightGap;
-            clipGrid->heightCount = heightCount;
-            minClipLongitude = clipGrid->maxLongitude;
             clipGrid->value = (float*)malloc(clipGrid->latitudeCount * clipGrid->longitudeCount * clipGrid->heightCount * sizeof(float));
+            minClipLongitude = clipGrid->maxLongitude;
         }
     }
     return true;
