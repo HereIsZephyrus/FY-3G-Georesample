@@ -18,7 +18,6 @@ static double random_longitude() {
 }
 
 void test_geotransfer(void) {
-    double latitude, longitude, height;
     for (int i = 0; i < 100; i++) {
         char msg[20];
         sprintf(msg, "Test Suite %d:", i);

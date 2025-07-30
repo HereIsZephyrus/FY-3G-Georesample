@@ -18,14 +18,17 @@ set(TEST_FILES
     ${TEST_DIR}/Unity/src/unity.c
     ${TEST_DIR}/unit_geotransfer.c
     ${TEST_DIR}/unit_readHDF.c
+    ${TEST_DIR}/unit_interpolate.c
     ${TEST_DIR}/test_suites.c
 )
 
 set(SOURCE_FILES
     src/interface.c
+    src/interpolate.c
     src/networking.c
     src/geotransfer.c
     src/data.c
+    src/core.c
 )
 
 add_library(FY3G_Resampling SHARED

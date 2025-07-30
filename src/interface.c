@@ -120,6 +120,7 @@ bool ReadGlobalAttribute(hid_t fileID, HDFGlobalAttribute* globalAttribute){
     char* startTime = (char*)malloc(datestrLength * sizeof(char));
     char* endDate = (char*)malloc(datestrLength * sizeof(char));
     char* endTime = (char*)malloc(datestrLength * sizeof(char));
+    char orbitDirection;
 
     if (!ReadSingleAttribute(fileID, "Scan_lines", H5T_NATIVE_INT, &globalAttribute->scanLineCount)){
         fprintf(stderr, "Failed to read scan line count\n");
@@ -141,9 +142,14 @@ bool ReadGlobalAttribute(hid_t fileID, HDFGlobalAttribute* globalAttribute){
         fprintf(stderr, "Failed to read end time\n");
         return false;
     }
+    if (!ReadSingleAttribute(fileID, "Orbit Direction", 0, &orbitDirection)){
+        fprintf(stderr, "Failed to read orbit direction\n");
+        return false;
+    }
     
     globalAttribute->startDateTime = CreateDateTime(startDate, startTime);
     globalAttribute->endDateTime = CreateDateTime(endDate, endTime);
+    globalAttribute->ascending = orbitDirection == 'A';
     free(startDate);
     free(startTime);
     free(endDate);
@@ -152,6 +158,12 @@ bool ReadGlobalAttribute(hid_t fileID, HDFGlobalAttribute* globalAttribute){
 }
 
 hid_t GetDatasetID(hid_t fileID, const char* path){
+    /**
+    @brief Get dataset ID
+    @param fileID: the file ID
+    @param path: the path of the dataset
+    @return the dataset ID
+    */
     hid_t datasetID = H5Dopen(fileID, path, H5P_DEFAULT);
     if (datasetID < 0)
         fprintf(stderr, "Failed to open dataset: %s\n", path);
@@ -159,6 +171,13 @@ hid_t GetDatasetID(hid_t fileID, const char* path){
 }
 
 bool GetRequiredDatasetID(hid_t fileID, const char* bandName, HDFBandRequired* required){
+    /**
+    @brief Get required dataset ID
+    @param fileID: the file ID
+    @param bandName: the name of the band
+    @param required: the required dataset ID
+    @return true if successful, false otherwise
+    */
     required->elevationID = GetDatasetID(fileID, ConstructPath((const char*[]){GEOLOCATION_GROUP_NAME, bandName, "elevation"}, 3));
     if (required->elevationID < 0){
         fprintf(stderr, "Failed to open dataset: %s\n", "elevation");
@@ -331,20 +350,34 @@ bool ReadBand(hid_t fileID, const char* bandName, HDFGlobalAttribute* globalAttr
         fprintf(stderr, "Failed to get all required dataset ID\n");
         return false;
     }
-    #pragma omp parallel for shared(infoArray, required, globalAttribute)
-    for (unsigned int lineIndex = DEBUG_INDEX; lineIndex < globalAttribute->scanLineCount; lineIndex++){
-        GridInfo* infoLine = (GridInfo*)malloc(SCAN_ANGLE_COUNT * sizeof(GridInfo));
-        if (!infoLine){
-            fprintf(stderr, "Failed to allocate memory for infoLine\n");
-            continue;
+    
+    const hsize_t totalLines = globalAttribute->scanLineCount;
+    const hsize_t numBatches = (totalLines + BATCH_SIZE - 1) / BATCH_SIZE;
+    const hsize_t restBatchSize = totalLines % BATCH_SIZE;
+    
+    bool success = true;
+    BatchReadContext ctxfull, ctxrest;
+    if (!InitBatchReadContext(&ctxfull, BATCH_SIZE) || !InitBatchReadContext(&ctxrest, restBatchSize))
+        success = false;
+    else {
+        #pragma omp for schedule(dynamic)
+        for (hsize_t batchIdx = 0; batchIdx < numBatches; batchIdx++) {
+            hsize_t startLine = batchIdx * BATCH_SIZE;
+            if (startLine + BATCH_SIZE > totalLines){
+                if (!ReadBatchScanLines(startLine, totalLines - startLine, &required, &ctxrest, infoArray)) {
+                    fprintf(stderr, "Failed to read batch starting at line %lu\n", startLine);
+                    success = false;
+                }
+            }
+            else {
+                if (!ReadBatchScanLines(startLine, BATCH_SIZE, &required, &ctxfull, infoArray)) {
+                    fprintf(stderr, "Failed to read batch starting at line %lu\n", startLine);
+                    success = false;
+                }
+            }
         }
-        if (!ReadSingleScanLine(lineIndex, &required, infoLine)){
-            fprintf(stderr, "Failed to read scan line\n");
-            free(infoLine);
-            continue;
-        }
-        infoArray[lineIndex] = infoLine;
-        printf("process %d from thread %d of %d\n", lineIndex, omp_get_thread_num(), omp_get_num_threads());
+        DestroyBatchReadContext(&ctxfull);
+        DestroyBatchReadContext(&ctxrest);
     }
 
     // free all resources
@@ -356,10 +389,11 @@ bool ReadBand(hid_t fileID, const char* bandName, HDFGlobalAttribute* globalAttr
     H5Dclose(required.groundHeightID);
     H5Dclose(required.valueID);
     H5Dclose(required.binClutterID);
-    return true;
+    
+    return success;
 }
 
-bool WriteHDF5(const char* filename, const FinalGrid* dataset, const HDFGlobalAttribute* globalAttribute){
+bool WriteHDF5(const char* filename, const GeodeticGrid* dataset, const HDFGlobalAttribute* globalAttribute){
     /**
     @brief Write HDF5 file
     @param filename: the name of the HDF5 file
@@ -431,6 +465,7 @@ bool WriteHDF5(const char* filename, const FinalGrid* dataset, const HDFGlobalAt
     }
 
     //write global attribute
+    const char* orbitDirection = globalAttribute->ascending ? "A" : "D";
     hid_t attrDataspaceID = H5Screate(H5S_SCALAR);
     if (attrDataspaceID < 0){
         fprintf(stderr, "Failed to create dataspace: %s\n", "Scan_Lines");
@@ -448,6 +483,9 @@ bool WriteHDF5(const char* filename, const FinalGrid* dataset, const HDFGlobalAt
     hid_t endDateTimeID = H5Acreate(fileID, "Observing_Ending_DateTime", strType, attrDataspaceID, H5P_DEFAULT, H5P_DEFAULT);
     if (endDateTimeID < 0)
         fprintf(stderr, "Failed to create dataset: %s\n", "endDateTime");
+    hid_t orbitDirectionID = H5Acreate(fileID, "Orbit_Direction", H5T_NATIVE_CHAR, attrDataspaceID, H5P_DEFAULT, H5P_DEFAULT);
+    if (orbitDirectionID < 0)
+        fprintf(stderr, "Failed to create dataset: %s\n", "orbitDirection");
     herr_t status = H5Awrite(scanLineCountID, H5T_NATIVE_INT, &globalAttribute->scanLineCount);
     if (status < 0)
         fprintf(stderr, "Failed to write dataset: %s\n", "scanLineCount");
@@ -457,41 +495,145 @@ bool WriteHDF5(const char* filename, const FinalGrid* dataset, const HDFGlobalAt
     status = H5Awrite(endDateTimeID, strType, ConstructDateTimeString(&globalAttribute->endDateTime));
     if (status < 0)
         fprintf(stderr, "Failed to write dataset: %s\n", "endDateTime");
+    status = H5Awrite(orbitDirectionID, H5T_NATIVE_CHAR, orbitDirection);
+    if (status < 0)
+        fprintf(stderr, "Failed to write dataset: %s\n", "orbitDirection");
     H5Tclose(strType);
     H5Aclose(scanLineCountID);
     H5Aclose(startDateTimeID);
     H5Aclose(endDateTimeID);
+    H5Aclose(orbitDirectionID);
     H5Sclose(attrDataspaceID);
     H5Fclose(fileID);
     return true;
 }
 
-bool ConstructFinalGrid(const HDFDataset* dataset, FinalGrid* finalGrid){
-    finalGrid->lineCount = dataset->globalAttribute.scanLineCount / 10;
-    finalGrid->heightCount = SCAN_HEIGHT_COUNT / 10;
-    const int dims[3] = {finalGrid->lineCount, SCAN_ANGLE_COUNT, finalGrid->heightCount};
-    const int memSize = dims[0] * dims[1] * dims[2] * sizeof(float);
-    for (int bandIndex = 0; bandIndex < 2; bandIndex++){
-        finalGrid->latitudeArray[bandIndex] = (float*)malloc(memSize);
-        finalGrid->longitudeArray[bandIndex] = (float*)malloc(memSize);
-        finalGrid->elevationArray[bandIndex] = (float*)malloc(memSize);
-        finalGrid->valueArray[bandIndex] = (float*)malloc(memSize);
-        if (!finalGrid->latitudeArray[bandIndex] || !finalGrid->longitudeArray[bandIndex] || !finalGrid->elevationArray[bandIndex] || !finalGrid->valueArray[bandIndex]){
-            fprintf(stderr, "Failed to allocate memory for latitudeArray, longitudeArray, elevationArray or valueArray\n");
-            return false;
-        }
+bool InitBatchReadContext(BatchReadContext* ctx, hsize_t batchSize) {
+    hsize_t dims2D[2] = {batchSize, SCAN_ANGLE_COUNT};
+    hsize_t dims3D_2[3] = {batchSize, SCAN_ANGLE_COUNT, 2};
+    hsize_t dims3D_500[3] = {batchSize, SCAN_ANGLE_COUNT, SCAN_HEIGHT_COUNT};
+    
+    ctx->memspace2D = H5Screate_simple(2, dims2D, NULL);
+    ctx->memspace3D_2 = H5Screate_simple(3, dims3D_2, NULL);
+    ctx->memspace3D_500 = H5Screate_simple(3, dims3D_500, NULL);
+    
+    ctx->elevation_batch = (float*)malloc(batchSize * SCAN_ANGLE_COUNT * sizeof(float));
+    ctx->latitude_batch = (float*)malloc(batchSize * SCAN_ANGLE_COUNT * 2 * sizeof(float));
+    ctx->longitude_batch = (float*)malloc(batchSize * SCAN_ANGLE_COUNT * 2 * sizeof(float));
+    ctx->groundHeight_batch = (float*)malloc(batchSize * SCAN_ANGLE_COUNT * sizeof(float));
+    ctx->zenith_batch = (float*)malloc(batchSize * SCAN_ANGLE_COUNT * sizeof(float));
+    ctx->value_batch = (float*)malloc(batchSize * SCAN_ANGLE_COUNT * SCAN_HEIGHT_COUNT * sizeof(float));
+    ctx->binClutter_batch = (float*)malloc(batchSize * SCAN_ANGLE_COUNT * sizeof(float));
+    ctx->height_batch = (float*)malloc(batchSize * SCAN_ANGLE_COUNT * SCAN_HEIGHT_COUNT * sizeof(float));
+    
+    return (ctx->elevation_batch && ctx->latitude_batch && ctx->longitude_batch && 
+            ctx->groundHeight_batch && ctx->zenith_batch && ctx->value_batch && 
+            ctx->binClutter_batch && ctx->height_batch);
+}
+
+void DestroyBatchReadContext(BatchReadContext* ctx) {
+    H5Sclose(ctx->memspace2D);
+    H5Sclose(ctx->memspace3D_2);
+    H5Sclose(ctx->memspace3D_500);
+    
+    free(ctx->elevation_batch);
+    free(ctx->latitude_batch);
+    free(ctx->longitude_batch);
+    free(ctx->groundHeight_batch);
+    free(ctx->zenith_batch);
+    free(ctx->value_batch);
+    free(ctx->binClutter_batch);
+    free(ctx->height_batch);
+}
+
+bool ReadBatchDataset(hid_t datasetID, int rank, int dim3, hsize_t startLine, hsize_t batchSize, hid_t memspaceID, void* buffer) {
+    /**
+    @brief Read batch dataset
+    @param datasetID: the dataset ID
+    @param rank: the rank of the dataset
+    @param dim3: the last dimension length of the dataset, if rank == 2, dim3 = 0
+    @param startLine: the start line
+    @param batchSize: the batch size
+    @param memspaceID: the memory space ID
+    @param buffer: the buffer to store the data
+    @return true if successful, false otherwise
+    */
+    hid_t dataspaceID = H5Dget_space(datasetID);
+    if (dataspaceID < 0) return false;
+    
+    hsize_t offset[3] = {startLine, 0, 0};
+    hsize_t count[3] = {batchSize, SCAN_ANGLE_COUNT, dim3};
+    if (dim3 > 0 && rank ==2){
+        fprintf(stderr, "dim3 > 0 and rank == 2\n");
+        return false;
     }
-    #pragma omp parallel for shared(dataset, finalGrid)
-    for (unsigned int lineIndex = 0; lineIndex < finalGrid->lineCount; lineIndex++)
-        for (int bandIndex = 0; bandIndex < 2; bandIndex++)
-            for (unsigned int angleIndex = 0; angleIndex < SCAN_ANGLE_COUNT; angleIndex++)
-                for (unsigned int heightIndex = 0; heightIndex < finalGrid->heightCount; heightIndex++){
-                    const int index = lineIndex * SCAN_ANGLE_COUNT * finalGrid->heightCount + angleIndex * finalGrid->heightCount + heightIndex;
-                    const int sampleLineIndex = DEBUG_INDEX;
-                    finalGrid->latitudeArray[bandIndex][index] = dataset->infoArray[bandIndex][sampleLineIndex][angleIndex].groundB;
-                    finalGrid->longitudeArray[bandIndex][index] = dataset->infoArray[bandIndex][sampleLineIndex][angleIndex].groundL;
-                    finalGrid->elevationArray[bandIndex][index] = dataset->infoArray[bandIndex][sampleLineIndex][angleIndex].evaluation;
-                    finalGrid->valueArray[bandIndex][index] = dataset->infoArray[bandIndex][sampleLineIndex][angleIndex].measuredArray[heightIndex];
-                }
+    
+    herr_t status = H5Sselect_hyperslab(dataspaceID, H5S_SELECT_SET, offset, NULL, count, NULL);
+    if (status < 0) {
+        H5Sclose(dataspaceID);
+        return false;
+    }
+    
+    status = H5Dread(datasetID, H5T_NATIVE_FLOAT, memspaceID, dataspaceID, H5P_DEFAULT, buffer);
+    H5Sclose(dataspaceID);
+    
+    return status >= 0;
+}
+
+bool ReadBatchScanLines(hsize_t startLine, hsize_t batchSize, const HDFBandRequired* required, BatchReadContext* ctx, GridInfo** infoArray) {
+    /**
+    @brief Read batch scan lines
+    @param startLine: the start line
+    @param batchSize: the batch size
+    @param required: the required dataset ID
+    @param ctx: the context
+    @param infoArray: the info array to store the data
+    @return true if successful, false otherwise
+    */
+    if (!ReadBatchDataset(required->elevationID, 2, 0, startLine, batchSize, ctx->memspace2D, ctx->elevation_batch) ||
+        !ReadBatchDataset(required->latitudeID, 3, 2, startLine, batchSize, ctx->memspace3D_2, ctx->latitude_batch) ||
+        !ReadBatchDataset(required->longitudeID, 3, 2, startLine, batchSize, ctx->memspace3D_2, ctx->longitude_batch) ||
+        !ReadBatchDataset(required->groundHeightID, 2, 0, startLine, batchSize, ctx->memspace2D, ctx->groundHeight_batch) ||
+        !ReadBatchDataset(required->zenithID, 2, 0, startLine, batchSize, ctx->memspace2D, ctx->zenith_batch) ||
+        !ReadBatchDataset(required->valueID, 3, SCAN_HEIGHT_COUNT, startLine, batchSize, ctx->memspace3D_500, ctx->value_batch) ||
+        !ReadBatchDataset(required->heightID, 3, SCAN_HEIGHT_COUNT, startLine, batchSize, ctx->memspace3D_500, ctx->height_batch) ||
+        !ReadBatchDataset(required->binClutterID, 2, 0, startLine, batchSize, ctx->memspace2D, ctx->binClutter_batch)) {
+        return false;
+    }
+    
+    #pragma omp parallel for
+    for (hsize_t i = 0; i < batchSize; i++) {
+        hsize_t lineIdx = startLine + i;
+        GridInfo* infoLine = (GridInfo*)malloc(SCAN_ANGLE_COUNT * sizeof(GridInfo));
+        if (!infoLine) continue;
+        
+        for (int angleIndex = 0; angleIndex < SCAN_ANGLE_COUNT; angleIndex++) {
+            size_t base2D = i * SCAN_ANGLE_COUNT + angleIndex;
+            size_t base3D_2 = base2D * 2;
+            size_t base3D_500 = base2D * SCAN_HEIGHT_COUNT;
+            
+            infoLine[angleIndex].lineIndex = lineIdx;
+            infoLine[angleIndex].angleIndex = angleIndex;
+            infoLine[angleIndex].groundL = ctx->longitude_batch[base3D_2];
+            infoLine[angleIndex].groundB = ctx->latitude_batch[base3D_2];
+            infoLine[angleIndex].groundH = ctx->groundHeight_batch[base2D];
+            infoLine[angleIndex].airL = ctx->longitude_batch[base3D_2 + 1];
+            infoLine[angleIndex].airB = ctx->latitude_batch[base3D_2 + 1];
+            infoLine[angleIndex].zeta = ctx->zenith_batch[base2D];
+            infoLine[angleIndex].evaluation = ctx->elevation_batch[base2D];
+            infoLine[angleIndex].clutterFreeBottomIndex = ctx->binClutter_batch[base2D];
+            infoLine[angleIndex].measuredArray = (float*)malloc(SCAN_HEIGHT_COUNT * sizeof(float));
+            infoLine[angleIndex].heightArray = (float*)malloc(SCAN_HEIGHT_COUNT * sizeof(float));
+            
+            if (infoLine[angleIndex].measuredArray && infoLine[angleIndex].heightArray) {
+                memcpy(infoLine[angleIndex].measuredArray, &ctx->value_batch[base3D_500], 
+                       SCAN_HEIGHT_COUNT * sizeof(float));
+                memcpy(infoLine[angleIndex].heightArray, &ctx->height_batch[base3D_500], 
+                       SCAN_HEIGHT_COUNT * sizeof(float));
+            }
+        }
+        infoArray[lineIdx] = infoLine;
+    }
+    
     return true;
 }

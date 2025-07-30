@@ -1,10 +1,12 @@
 #ifndef INTERPOLATE_H
 #define INTERPOLATE_H
+#define DEFAULT_HEIGHT_COUNT 60
 
-#include "geotransfer.h"
 #include <stddef.h>
 #include <stdint.h>
 #include <math.h>
+#include "geotransfer.h"
+#include "data.h"
 
 typedef struct {
     double groundX, groundY, groundZ, groundH;
@@ -14,5 +16,10 @@ typedef struct {
 CartesianInterpolator calcInterParams(  const double groundX, const double groundY, const double groundZ, const double groundH,
                                         const double latitude, const double longitude, const double zeta);
 
-Coordinate calcCartesian(const CartesianInterpolator *interpolator);
+Coordinate calcCartesian(const CartesianInterpolator *interpolator, const float queryHeight);
+
+bool GetGeodeticRange(GridInfo** const infoArray, const int lineCount, float *maxLatitude, float *minLatitude, float *maxLongitude, float *minLongitude);
+bool InitClipGridArray(const HDFDataset* dataset, const int gridSize, const int initHeight, const int heightGap, const int heightCount, ClipGridResult* finalGrid);
+float QueryClipMaxLongitude(const float minClipLatitude, const float maxClipLatitude, GridInfo** const infoArray, const unsigned int lineCount);
+unsigned int SearchLineIndex(const float latitude, unsigned int bias,GridInfo** const infoArray, unsigned int left, unsigned int right);
 #endif

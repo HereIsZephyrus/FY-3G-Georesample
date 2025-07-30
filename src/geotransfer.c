@@ -34,23 +34,8 @@ double ComputeS(const double t1, const double t2, const double t3, const double 
     return s;
 }
 
-double ToRadians(const double degree){
-    /**
-     * @brief convert degree to radians
-     * @param degree: degree
-     * @return radians
-    */
-    return degree * M_PI / 180;
-}
-
-double ToDegrees(const double radians){
-    /**
-     * @brief convert radians to degree
-     * @param radians: radians
-     * @return degree
-    */
-    return radians * 180 / M_PI;
-}
+double ToRadians(const double degree){return degree * M_PI / 180;}
+double ToDegrees(const double radians){return radians * 180 / M_PI;}
 
 bool IsGeodeticValid(const double latitude, const double longitude, const double height) {
     /**
@@ -68,7 +53,7 @@ bool IsGeodeticValid(const double latitude, const double longitude, const double
         fprintf(stderr, "Longitude out of range: %f\n", longitude);
         return false;
     }
-    if (height < -100){
+    if (height < -100 || height > 200000){
         fprintf(stderr, "Height out of range: %f\n", height);
         return false;
     }

@@ -36,13 +36,13 @@ $$
 $$
 \begin{cases}
 \alpha &= 1 - \frac{1}{\cos^2 \Zeta} \\
-\beta &= \frac{2H_g}{\cos^2 \Zeta} + 2N_a(\cos^2 B_a + e^2\sin^2 B_a) -2 (X_g \cos B_a \cos L_a + Y_g \cos B_a \cos L_a + Z_g \sin B_a)\\
-\gamma &= X_g^2 + Y_g^2 + Z_g^2 + N_a^2(1 - 2 e^2 \sin^2 B_a + e^4 \sin^2 B_a) -2 (X_gN_a \cos B_a \cos L + Y_gN_a \cos B_a \cos L + Z_gN_a(1-e^2) \sin B_a)
+\beta &= \frac{2H_g}{\cos^2 \Zeta} + 2N_a(1-e^2\sin^2 B) -2(\cos B \cos L X_g + \cos B \sin L Y_g + \sin B Z_g)\\
+\gamma &= X_g^2 + Y_g^2 + Z_g^2 - \frac{H_g^2}{\cos^2 \Zeta} + N_a^2(1 - 2 e^2 \sin^2 B_a + e^4 \sin^2 B_a) -2N_a(\cos B_a \cos L X_g + \cos B_a \sin L Y_g + Z_g(1-e^2) \sin B_a)
 \end{cases}
 \tag{4}
 $$
 
-求解二次函数得到离地数据高程，进一步得到离地数据空间直角坐标。
+其中$\alpha < 0$, 因此$H_a = \frac{-\beta - \sqrt{\Delta}}{2\alpha}$。求解二次函数得到离地数据高程，进一步得到离地数据空间直角坐标。
 
 ### 3. 根据地表和 $18km$ 格点信息重建所有格点空间直角坐标
 
