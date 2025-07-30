@@ -36,26 +36,27 @@ bool AppendIndex(IndexArray *arr, int index);
 int GetNodeHeight(AVLNode *node);
 int GetNodeBalanceFactor(AVLNode *node);
 void UpdateNodeHeight(AVLNode *node);
-AVLNode* CreateAVLNode(float value, int array_index);
+AVLNode* CreateAVLNode(float value, int arrayIndex);
 void DestroyAVLNode(AVLNode *node);
-AVLNode* InsertAVLNode(AVLNode *node, float value, int array_index, bool *success);
+AVLNode* InsertAVLNode(AVLNode *node, float value, int arrayIndex, bool *success);
 AVLNode* RotateRight(AVLNode *y);
 AVLNode* RotateLeft(AVLNode *x);
 
 AVLTree* CreateAVLTree(void);
 void DestroyAVLTree(AVLTree *tree);
-bool InsertAVLTree(AVLTree *tree, float value, int array_index);
+bool InsertAVLTree(AVLTree *tree, float value, int arrayIndex);
 AVLNode* SearchAVLTree(AVLTree *tree, float value);
 AVLNode* SearchAVLNode(AVLNode *node, float value);
 
-QueryResult* AVLTreeRangeQuery(AVLTree *tree, float min_value, float max_value);
-void AVLNodeRangeQuery(AVLNode *node, float min_value, float max_value, int **result, unsigned int *count, unsigned int *capacity);
+// Range query function
+QueryResult* AVLTreeRangeQuery(AVLTree *tree, float latMin, float latMax, const float *longitudeArray, float lonMin, float lonMax);
+void AVLNodeRangeQuery(AVLNode *node, float latMin, float latMax, const float *longitudeArray, float lonMin, float lonMax, int **result, unsigned int *count, unsigned int *capacity);
 void DestroyQueryResult(QueryResult *result);
 
 int AVLTreeGetHeight(AVLTree *tree);
 bool AVLTreeIsEmpty(AVLTree *tree);
 
-AVLTree* CreateAVLTreeFromArray(const float *values, int array_size);
+AVLTree* CreateAVLTreeFromArray(const float *values, int arraySize);
 
 int AVLNodeGetHeight(AVLNode *node);
 int AVLNodeGetBalanceFactor(AVLNode *node);

@@ -2,11 +2,15 @@
 #include "index.h"
 #include <float.h>
 
-static int count_indices_in_range(const float *values, int size, float min_val, float max_val) {
+static int CountIndicesInRange(const float *latitudeArray, const float *longitudeArray, 
+                             int size, float latMin, float latMax,
+                             float lonMin, float lonMax) {
     int count = 0;
     for (int i = 0; i < size; i++) {
-        if (values[i] >= min_val && values[i] <= max_val)
+        if (latitudeArray[i] >= latMin && latitudeArray[i] <= latMax &&
+            longitudeArray[i] >= lonMin && longitudeArray[i] <= lonMax) {
             count++;
+        }
     }
     return count;
 }
@@ -67,35 +71,135 @@ void test_index_duplicate_value(void) {
     DestroyAVLTree(tree);
 }
 
-void test_index_range_query(void) {
-    float test_array[] = {1.5, 8.2, 3.7, 9.1, 2.8, 7.3, 5.6, 4.2, 6.9, 8.8};
-    int array_size = sizeof(test_array) / sizeof(test_array[0]);
+void test_index_range_query_basic(void) {
+    float latitudeArray[] = {1.5, 8.2, 3.7, 9.1, 2.8, 7.3, 5.6, 4.2, 6.9, 8.8};
+    float longitudeArray[] = {10.0, 15.0, 12.5, 18.0, 11.2, 16.7, 13.4, 14.8, 17.3, 19.1};
+    int arraySize = sizeof(latitudeArray) / sizeof(latitudeArray[0]);
     
-    AVLTree *tree = CreateAVLTreeFromArray(test_array, array_size);
+    AVLTree *tree = CreateAVLTreeFromArray(latitudeArray, arraySize);
     TEST_ASSERT_NOT_NULL(tree);
     
-    // test range query [3.0, 7.0]
-    QueryResult *result = AVLTreeRangeQuery(tree, 3.0, 7.0);
+    // Test standard range query with both arrays
+    float latMin = 3.0, latMax = 7.0;
+    float lonMin = 12.0, lonMax = 15.0;
+    
+    QueryResult *result = AVLTreeRangeQuery(tree, latMin, latMax, longitudeArray, lonMin, lonMax);
     TEST_ASSERT_NOT_NULL(result);
     
-    int expected_count = count_indices_in_range(test_array, array_size, 3.0, 7.0);
-    TEST_ASSERT_EQUAL_INT(expected_count, result->count);
+    int expectedCount = CountIndicesInRange(latitudeArray, longitudeArray, arraySize,
+                                          latMin, latMax, lonMin, lonMax);
+    TEST_ASSERT_EQUAL_INT(expectedCount, result->count);
     
+    // Verify each returned index meets both range conditions
     for (unsigned int i = 0; i < result->count; i++) {
         int idx = result->indices[i];
-        TEST_ASSERT_TRUE(idx >= 0 && idx < array_size);
-        TEST_ASSERT_TRUE(test_array[idx] >= 3.0 && test_array[idx] <= 7.0);
+        TEST_ASSERT_TRUE(idx >= 0 && idx < arraySize);
+        TEST_ASSERT_TRUE(latitudeArray[idx] >= latMin && latitudeArray[idx] <= latMax);
+        TEST_ASSERT_TRUE(longitudeArray[idx] >= lonMin && longitudeArray[idx] <= lonMax);
     }
     
     DestroyQueryResult(result);
+    DestroyAVLTree(tree);
+}
+
+void test_index_range_query_no_longitude_match(void) {
+    float latitudeArray[] = {1.5, 8.2, 3.7, 9.1, 2.8, 7.3, 5.6, 4.2, 6.9, 8.8};
+    float longitudeArray[] = {10.0, 15.0, 12.5, 18.0, 11.2, 16.7, 13.4, 14.8, 17.3, 19.1};
+    int arraySize = sizeof(latitudeArray) / sizeof(latitudeArray[0]);
     
-    // test empty range query
-    result = AVLTreeRangeQuery(tree, 10.0, 11.0);
+    AVLTree *tree = CreateAVLTreeFromArray(latitudeArray, arraySize);
+    TEST_ASSERT_NOT_NULL(tree);
+    
+    // Test case where latitude range has matches but longitude range doesn't
+    QueryResult *result = AVLTreeRangeQuery(tree, 3.0, 7.0, longitudeArray, 20.0, 25.0);
+    TEST_ASSERT_NOT_NULL(result);
+    TEST_ASSERT_EQUAL_INT(0, result->count);
+    
+    DestroyQueryResult(result);
+    DestroyAVLTree(tree);
+}
+
+void test_index_range_query_no_latitude_match(void) {
+    float latitudeArray[] = {1.5, 8.2, 3.7, 9.1, 2.8, 7.3, 5.6, 4.2, 6.9, 8.8};
+    float longitudeArray[] = {10.0, 15.0, 12.5, 18.0, 11.2, 16.7, 13.4, 14.8, 17.3, 19.1};
+    int arraySize = sizeof(latitudeArray) / sizeof(latitudeArray[0]);
+    
+    AVLTree *tree = CreateAVLTreeFromArray(latitudeArray, arraySize);
+    TEST_ASSERT_NOT_NULL(tree);
+    
+    // Test case where longitude range has matches but latitude range doesn't
+    QueryResult *result = AVLTreeRangeQuery(tree, 10.0, 11.0, longitudeArray, 12.0, 15.0);
+    TEST_ASSERT_NOT_NULL(result);
+    TEST_ASSERT_EQUAL_INT(0, result->count);
+    
+    DestroyQueryResult(result);
+    DestroyAVLTree(tree);
+}
+
+void test_index_range_query_exact_match(void) {
+    float latitudeArray[] = {1.5, 8.2, 3.7, 9.1, 2.8, 7.3, 5.6, 4.2, 6.9, 8.8};
+    float longitudeArray[] = {10.0, 15.0, 12.5, 18.0, 11.2, 16.7, 13.4, 14.8, 17.3, 19.1};
+    int arraySize = sizeof(latitudeArray) / sizeof(latitudeArray[0]);
+    
+    AVLTree *tree = CreateAVLTreeFromArray(latitudeArray, arraySize);
+    TEST_ASSERT_NOT_NULL(tree);
+    
+    // Test exact value match using array values as range boundaries
+    float exactLat = latitudeArray[2];  // 3.7
+    float exactLon = longitudeArray[2];  // 12.5
+    
+    QueryResult *result = AVLTreeRangeQuery(tree, exactLat, exactLat,
+                                          longitudeArray, exactLon, exactLon);
+    TEST_ASSERT_NOT_NULL(result);
+    TEST_ASSERT_EQUAL_INT(1, result->count);
+    TEST_ASSERT_EQUAL_INT(2, result->indices[0]);
+    
+    DestroyQueryResult(result);
+    DestroyAVLTree(tree);
+}
+
+void test_index_range_query_empty_ranges(void) {
+    float latitudeArray[] = {1.5, 8.2, 3.7, 9.1, 2.8, 7.3, 5.6, 4.2, 6.9, 8.8};
+    float longitudeArray[] = {10.0, 15.0, 12.5, 18.0, 11.2, 16.7, 13.4, 14.8, 17.3, 19.1};
+    int arraySize = sizeof(latitudeArray) / sizeof(latitudeArray[0]);
+    
+    AVLTree *tree = CreateAVLTreeFromArray(latitudeArray, arraySize);
+    TEST_ASSERT_NOT_NULL(tree);
+    
+    // Test invalid latitude range (min > max)
+    QueryResult *result = AVLTreeRangeQuery(tree, 7.0, 3.0, longitudeArray, 12.0, 15.0);
+    TEST_ASSERT_NOT_NULL(result);
+    TEST_ASSERT_EQUAL_INT(0, result->count);
+    DestroyQueryResult(result);
+    
+    // Test invalid longitude range (min > max)
+    result = AVLTreeRangeQuery(tree, 3.0, 7.0, longitudeArray, 15.0, 12.0);
     TEST_ASSERT_NOT_NULL(result);
     TEST_ASSERT_EQUAL_INT(0, result->count);
     DestroyQueryResult(result);
     
     DestroyAVLTree(tree);
+}
+
+void test_index_range_query_boundary_cases(void) {
+    float longitudeArray[] = {1.0, 2.0, 3.0};
+    // Test NULL tree
+    TEST_ASSERT_NULL(AVLTreeRangeQuery(NULL, 0.0, 1.0, longitudeArray, 0.0, 1.0));
+    
+    AVLTree *tree = CreateAVLTree();
+    InsertAVLTree(tree, 5.0, 0);
+    DestroyAVLTree(tree);
+}
+
+void test_index_range_query(void) {
+    TEST_MESSAGE("Running range query tests...");
+    RUN_TEST(test_index_range_query_basic);
+    RUN_TEST(test_index_range_query_no_longitude_match);
+    RUN_TEST(test_index_range_query_no_latitude_match);
+    RUN_TEST(test_index_range_query_exact_match);
+    RUN_TEST(test_index_range_query_empty_ranges);
+    RUN_TEST(test_index_range_query_boundary_cases);
+    TEST_MESSAGE("Range query tests completed");
 }
 
 void test_index_create_from_array(void) {
@@ -123,17 +227,18 @@ void test_index_create_from_array(void) {
 }
 
 void test_index_boundary_cases(void) {
-    float create_array[] = {3.14, 2.71, 1.41, 1.73, 2.24, 3.14, 2.71};
+    float latitudeArray[] = {3.14, 2.71, 1.41, 1.73, 2.24, 3.14, 2.71};
+    float longitudeArray[] = {10.0, 15.0, 12.5, 18.0, 11.2, 16.7, 13.4, 14.8, 17.3, 19.1};
     TEST_ASSERT_NULL(SearchAVLTree(NULL, 1.0));
     TEST_ASSERT_FALSE(InsertAVLTree(NULL, 1.0, 0));
-    TEST_ASSERT_NULL(AVLTreeRangeQuery(NULL, 0.0, 1.0));
+    TEST_ASSERT_NULL(AVLTreeRangeQuery(NULL, 0.0, 1.0, longitudeArray, 0.0, 1.0));
     
     TEST_ASSERT_NULL(CreateAVLTreeFromArray(NULL, 0));
-    TEST_ASSERT_NULL(CreateAVLTreeFromArray(create_array, 0));
+    TEST_ASSERT_NULL(CreateAVLTreeFromArray(latitudeArray, 0));
     
     AVLTree *tree = CreateAVLTree();
     InsertAVLTree(tree, 5.0, 0);
-    QueryResult *result = AVLTreeRangeQuery(tree, 10.0, 5.0); // max < min
+    QueryResult *result = AVLTreeRangeQuery(tree, 10.0, 5.0, longitudeArray, 0.0, 1.0); // max < min
     TEST_ASSERT_NOT_NULL(result);
     TEST_ASSERT_EQUAL_INT(0, result->count);
     DestroyQueryResult(result);
@@ -162,16 +267,13 @@ void test_index(void) {
     RUN_TEST(test_index_range_query);
     TEST_MESSAGE("test5 passed");
     
-    TEST_MESSAGE("test6: delete index");
+    TEST_MESSAGE("test6: create from array");
+    RUN_TEST(test_index_create_from_array);
     TEST_MESSAGE("test6 passed");
     
-    TEST_MESSAGE("test7: create from array");
-    RUN_TEST(test_index_create_from_array);
-    TEST_MESSAGE("test7 passed");
-    
-    TEST_MESSAGE("test8: boundary cases");
+    TEST_MESSAGE("test7: boundary cases");
     RUN_TEST(test_index_boundary_cases);
-    TEST_MESSAGE("test8 passed");
+    TEST_MESSAGE("test7 passed");
     
     TEST_MESSAGE("all tests passed");
 }

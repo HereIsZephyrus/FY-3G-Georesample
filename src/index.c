@@ -34,11 +34,11 @@ bool AppendIndex(IndexArray *arr, int index) {
     if (!arr) return false;
     
     if (arr->size >= arr->capacity) { // dynamically increase the capacity
-        int new_capacity = arr->capacity * 2;
-        int *new_indices = realloc(arr->indices, new_capacity * sizeof(int));
-        if (!new_indices) return false;
-        arr->indices = new_indices;
-        arr->capacity = new_capacity;
+        unsigned int newCapacity = arr->capacity * 2;
+        int *newIndices = realloc(arr->indices, newCapacity * sizeof(int));
+        if (!newIndices) return false;
+        arr->indices = newIndices;
+        arr->capacity = newCapacity;
     }
     arr->indices[arr->size++] = index;
     return true;
@@ -193,10 +193,13 @@ AVLNode* SearchAVLTree(AVLTree *tree, float value) {
     return SearchAVLNode(tree->root, value);
 }
 
-void AVLNodeRangeQuery(AVLNode *node, float min_value, float maxValue, int **result, unsigned int *count, unsigned int *capacity) {
+void AVLNodeRangeQuery(AVLNode *node, float latMin, float latMax, const float *longitudeArray, float lonMin, float lonMax, int **result, unsigned int *count, unsigned int *capacity) {
     if (!node) return;
-    if (node->value >= min_value && node->value <= maxValue) {
+    if (node->value >= latMin && node->value <= latMax) {
         for (unsigned int i = 0; i < node->indices->size; i++) {
+            // check if the longitude value is in the range
+            if (longitudeArray[node->indices->indices[i]] < lonMin || longitudeArray[node->indices->indices[i]] > lonMax)
+                continue;
             if (*count >= *capacity) {
                 *capacity *= 2;
                 *result = realloc(*result, *capacity * sizeof(int));
@@ -205,14 +208,14 @@ void AVLNodeRangeQuery(AVLNode *node, float min_value, float maxValue, int **res
         }
     }
     
-    if (node->value > min_value)
-        AVLNodeRangeQuery(node->left, min_value, maxValue, result, count, capacity);
+    if (node->value > latMin)
+        AVLNodeRangeQuery(node->left, latMin, latMax, longitudeArray, lonMin, lonMax, result, count, capacity);
     
-    if (node->value < maxValue)
-        AVLNodeRangeQuery(node->right, min_value, maxValue, result, count, capacity);
+    if (node->value < latMax)
+        AVLNodeRangeQuery(node->right, latMin, latMax, longitudeArray, lonMin, lonMax, result, count, capacity);
 }
 
-QueryResult* AVLTreeRangeQuery(AVLTree *tree, float min_value, float maxValue) {
+QueryResult* AVLTreeRangeQuery(AVLTree *tree, float latMin, float latMax, const float *longitudeArray, float lonMin, float lonMax){
     if (!tree) return NULL;
     
     QueryResult *result = malloc(sizeof(QueryResult));
@@ -226,7 +229,7 @@ QueryResult* AVLTreeRangeQuery(AVLTree *tree, float min_value, float maxValue) {
     }
     
     result->count = 0;
-    AVLNodeRangeQuery(tree->root, min_value, maxValue, 
+    AVLNodeRangeQuery(tree->root, latMin, latMax, longitudeArray, lonMin, lonMax, 
                          &result->indices, &result->count, &capacity);
     return result;
 }
@@ -245,13 +248,13 @@ bool AVLTreeIsEmpty(AVLTree *tree) {
     return !tree || !tree->root;
 }
 
-AVLTree* CreateAVLTreeFromArray(const float *values, int array_size) {
-    if (!values || array_size <= 0) return NULL;
+AVLTree* CreateAVLTreeFromArray(const float *values, int arraySize) {
+    if (!values || arraySize <= 0) return NULL;
     
     AVLTree *tree = CreateAVLTree();
     if (!tree) return NULL;
     
-    for (int i = 0; i < array_size; i++) {
+    for (int i = 0; i < arraySize; i++) {
         if (!InsertAVLTree(tree, values[i], i)) {
             DestroyAVLTree(tree);
             return NULL;
