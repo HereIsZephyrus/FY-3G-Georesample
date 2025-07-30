@@ -20,6 +20,7 @@ set(TEST_FILES
     ${TEST_DIR}/unit_readHDF.c
     ${TEST_DIR}/unit_interpolate.c
     ${TEST_DIR}/unit_core.c
+    ${TEST_DIR}/unit_index.c
     ${TEST_DIR}/test_suites.c
 )
 
@@ -30,6 +31,7 @@ set(SOURCE_FILES
     src/geotransfer.c
     src/data.c
     src/core.c
+    src/index.c
 )
 
 add_library(FY3G_Resampling SHARED

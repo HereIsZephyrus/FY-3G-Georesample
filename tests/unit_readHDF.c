@@ -8,13 +8,13 @@ static const char* TEST_OUTPUT_FILE = "/mnt/repo/hxlc/FY-3G-Georesample/tests/ou
 
 void test_readHDF5(void) {
     HDFDataset dataset;
-    TEST_ASSERT_EQUAL(true, ReadHDF5(TEST_INPUT_FILE, &dataset));
+    TEST_ASSERT_TRUE(ReadHDF5(TEST_INPUT_FILE, &dataset));
     TEST_MESSAGE("Read HDF5 file successfully");
     GeodeticGrid finalGrid;
-    TEST_ASSERT_EQUAL(true, ProcessDataset(&dataset, &finalGrid));
+    TEST_ASSERT_TRUE(ProcessDataset(&dataset, &finalGrid));
     TEST_MESSAGE("Process dataset successfully");
     DestroyHDFDataset(&dataset);
-    TEST_ASSERT_EQUAL(true, WriteHDF5(TEST_OUTPUT_FILE, &finalGrid, &dataset.globalAttribute));
+    TEST_ASSERT_TRUE(WriteHDF5(TEST_OUTPUT_FILE, &finalGrid, &dataset.globalAttribute));
     TEST_MESSAGE("Write HDF5 file successfully");
     DestroyFinalGrid(&finalGrid);
 }
