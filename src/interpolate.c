@@ -72,18 +72,12 @@ Coordinate calcCartesian(const CartesianInterpolator *interpolator, const float 
 
 bool GetGeodeticRange(GridInfo** const infoArray, const int lineCount, float *maxLatitude, float *minLatitude, float *maxLongitude, float *minLongitude){
     *maxLatitude = -90, *minLatitude = 90, *maxLongitude = -180, *minLongitude = 180;
-    const bool isIncreasingLongitude = infoArray[0][0].groundL < infoArray[1][0].groundL; // to check if the longitude is increasing
     const float firstLongitude = infoArray[0][0].groundL; // to check if the longitude will over 180 after wrap
     for (int lineIndex = 0; lineIndex < lineCount; lineIndex++){
         for (int angleIndex = 0; angleIndex < SCAN_ANGLE_COUNT; angleIndex++){
             const float latitude = infoArray[lineIndex][angleIndex].groundB;
             float longitude = infoArray[lineIndex][angleIndex].groundL;
-            if (isIncreasingLongitude){
-                if (longitude < firstLongitude) longitude += 360; // wrap to 0-360 to keep it monotonic
-            }
-            else{
-                if (longitude > firstLongitude) longitude -= 360;  // wrap to -360-0 to keep it monotonic
-            }
+            if (longitude < firstLongitude) longitude += 360; // wrap to 0-360 to keep it monotonic
             if (latitude > *maxLatitude) *maxLatitude = latitude;
             if (latitude < *minLatitude) *minLatitude = latitude;
             if (longitude > *maxLongitude) *maxLongitude = longitude;
@@ -92,19 +86,15 @@ bool GetGeodeticRange(GridInfo** const infoArray, const int lineCount, float *ma
     }
     return true;
 }
-bool InitFlatGrid(GridInfo** const infoArray, const int lineCount, const int gridSize, float latitude[], float longitude[]){
-    const float latitudeGap = (float)gridSize * 180.0f / (M_PI * WGS84_B), longitudeGap = (float)gridSize * 180.0f / (M_PI * WGS84_A * cos(ToRadians(maxLatitude)));
-    const unsigned int latitudeCount = (maxLatitude - minLatitude) / latitudeGap, longitudeCount = (maxLongitude - minLongitude) / longitudeGap;
-    latitude = (float*)malloc(latitudeCount * sizeof(float));
-    longitude = (float*)malloc(longitudeCount * sizeof(float));
-    for (unsigned int i = 0; i < latitudeCount; i++){
-        latitude[i] = minLatitude + i * latitudeGap;
-    }   
-    
-    return true;
-}
-bool InitGridHeight(float *const latitude[], float *const longitude[], const int initHeight, const int heightGap, const int heightCount, GeodeticGrid* finalGrid){
-    return true;
+float QueryClipMaxLongitude(const float minClipLatitude, const float maxClipLatitude, GridInfo** const infoArray, const int lineCount){
+    float maxLongitude = -180;
+    for (int lineIndex = 0; lineIndex < lineCount; lineIndex++){
+        for (int angleIndex = 0; angleIndex < SCAN_ANGLE_COUNT; angleIndex++){
+            const float longitude = infoArray[lineIndex][angleIndex].groundL;
+            if (longitude > maxLongitude) maxLongitude = longitude;
+        }
+    }
+    return maxLongitude;
 }
 bool InitClipGridArray(const HDFDataset* dataset, int gridSize, int initHeight, const int heightGap, const int heightCount, ClipGridResult* finalGrid){
     /**
@@ -119,28 +109,31 @@ bool InitClipGridArray(const HDFDataset* dataset, int gridSize, int initHeight, 
      */
     const int lineCount = dataset->globalAttribute.scanLineCount;
     const float latitudeGap = (float)gridSize * 180.0f / (M_PI * WGS84_B);
-    float *latitude[2], *longitude[2];
     for (int bandIndex = 0; bandIndex < 2; bandIndex++){
         float globalMaxLatitude, globalMinLatitude, globalMaxLongitude, globalMinLongitude; // longitude is wrapped
         GetGeodeticRange(dataset->infoArray[bandIndex], lineCount, &globalMaxLatitude, &globalMinLatitude, &globalMaxLongitude, &globalMinLongitude);
-        finalGrid->clipCount = (globalMaxLatitude - globalMinLatitude) / MAX_LONGITUDE_WIDTH + 1;
+        finalGrid->clipCount = ceil((globalMaxLatitude - globalMinLatitude) / MAX_LONGITUDE_WIDTH);
         finalGrid->clipGrids[bandIndex] = (ClipGrid*)malloc(finalGrid->clipCount * sizeof(ClipGrid));
-        const float readlClipGap = (globalMaxLatitude - globalMinLatitude) / finalGrid->clipCount;
+        const float realClipLatitudeGap = (globalMaxLatitude - globalMinLatitude) / finalGrid->clipCount;
+        const float realClipLatitudeCount = ceil(realClipLatitudeGap / latitudeGap);
+        float minClipLongitude = globalMinLongitude;
         for (unsigned int clipIndex = 0; clipIndex < finalGrid->clipCount; clipIndex++){
-            const float minClipLatitude = globalMinLatitude + clipIndex * readlClipGap;
-            const float maxClipLatitude = minClipLatitude + readlClipGap;
-            const float centerClipLatitude = (minClipLatitude + maxClipLatitude) / 2;
-
+            ClipGrid* clipGrid = &finalGrid->clipGrids[bandIndex][clipIndex];
+            clipGrid->minLatitude = globalMinLatitude + clipIndex * realClipLatitudeGap;
+            clipGrid->maxLatitude = clipGrid->minLatitude + realClipLatitudeGap;
+            clipGrid->latitudeGap = realClipLatitudeGap;
+            clipGrid->latitudeCount = realClipLatitudeCount;
+            clipGrid->minLongitude = minClipLongitude;
+            const float centerClipLatitude = (clipGrid->minLatitude + clipGrid->maxLatitude) / 2;
+            clipGrid->longitudeGap = (float)gridSize * 180.0f / (M_PI * WGS84_A * cos(ToRadians(centerClipLatitude)));
+            clipGrid->maxLongitude = QueryClipMaxLongitude(clipGrid->minLatitude, clipGrid->maxLatitude, dataset->infoArray[bandIndex], lineCount);
+            clipGrid->longitudeCount = ceil((clipGrid->maxLongitude - clipGrid->minLongitude) / clipGrid->longitudeGap);
+            clipGrid->minHeight = initHeight;
+            clipGrid->heightGap = heightGap;
+            clipGrid->heightCount = heightCount;
+            minClipLongitude = clipGrid->maxLongitude;
+            clipGrid->value = (float*)malloc(clipGrid->latitudeCount * clipGrid->longitudeCount * clipGrid->heightCount * sizeof(float));
         }
-        
-        if (!InitFlatGrid(dataset->infoArray[bandIndex], lineCount, gridSize, latitude[bandIndex], longitude[bandIndex])){
-            fprintf(stderr, "Failed to initialize flat grid of band %d\n", bandIndex);
-            return false;
-        }
-    }
-    if (!InitGridHeight(latitude, longitude, initHeight, heightGap, heightCount, finalGrid)){
-        fprintf(stderr, "Failed to initialize grid height\n");
-        return false;
     }
     return true;
 }

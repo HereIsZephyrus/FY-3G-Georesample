@@ -19,7 +19,6 @@ CartesianInterpolator calcInterParams(  const double groundX, const double groun
 Coordinate calcCartesian(const CartesianInterpolator *interpolator, const float queryHeight);
 
 bool GetGeodeticRange(GridInfo** const infoArray, const int lineCount, float *maxLatitude, float *minLatitude, float *maxLongitude, float *minLongitude);
-bool InitFlatGrid(GridInfo** const infoArray, const int lineCount, const int gridSize, float latitude[], float longitude[]);
-bool InitGridHeight(float *const latitude[], float *const longitude[], const int initHeight, const int heightGap, const int heightCount, GeodeticGrid* finalGrid);
 bool InitClipGridArray(const HDFDataset* dataset, const int gridSize, const int initHeight, const int heightGap, const int heightCount, ClipGridResult* finalGrid);
+float QueryClipMaxLongitude(const float minClipLatitude, const float maxClipLatitude, GridInfo** const infoArray, const int lineCount);
 #endif

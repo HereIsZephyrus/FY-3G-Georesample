@@ -24,6 +24,7 @@ typedef struct{
 typedef struct {
     unsigned int scanLineCount;
     DateTime startDateTime, endDateTime;
+    bool ascending;
 } HDFGlobalAttribute;
 
 extern const char* BAND_NAMES[2];
@@ -38,11 +39,10 @@ typedef struct {
 } GeodeticGrid;
 
 typedef struct {
-    unsigned int xCount, yCount;
-    float maxLatitude, minLatitude, maxLongitude, minLongitude;
-    float latitudeGap, longitudeGap;
-    int initHeight, heightGap, heightCount;
-    float*** value;
+    unsigned int latitudeCount, longitudeCount, heightCount;
+    float maxLatitude, minLatitude, maxLongitude, minLongitude, minHeight;
+    float latitudeGap, longitudeGap, heightGap;
+    float *value; // [latitudeCount][longitudeCount][heightCount]
 } ClipGrid;
 
 typedef struct{

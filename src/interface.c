@@ -120,6 +120,7 @@ bool ReadGlobalAttribute(hid_t fileID, HDFGlobalAttribute* globalAttribute){
     char* startTime = (char*)malloc(datestrLength * sizeof(char));
     char* endDate = (char*)malloc(datestrLength * sizeof(char));
     char* endTime = (char*)malloc(datestrLength * sizeof(char));
+    char orbitDirection;
 
     if (!ReadSingleAttribute(fileID, "Scan_lines", H5T_NATIVE_INT, &globalAttribute->scanLineCount)){
         fprintf(stderr, "Failed to read scan line count\n");
@@ -141,9 +142,14 @@ bool ReadGlobalAttribute(hid_t fileID, HDFGlobalAttribute* globalAttribute){
         fprintf(stderr, "Failed to read end time\n");
         return false;
     }
+    if (!ReadSingleAttribute(fileID, "Orbit Direction", 0, &orbitDirection)){
+        fprintf(stderr, "Failed to read orbit direction\n");
+        return false;
+    }
     
     globalAttribute->startDateTime = CreateDateTime(startDate, startTime);
     globalAttribute->endDateTime = CreateDateTime(endDate, endTime);
+    globalAttribute->ascending = orbitDirection == 'A';
     free(startDate);
     free(startTime);
     free(endDate);
@@ -351,7 +357,8 @@ bool ReadBand(hid_t fileID, const char* bandName, HDFGlobalAttribute* globalAttr
             fprintf(stderr, "Failed to allocate memory for infoLine\n");
             continue;
         }
-        if (!ReadSingleScanLine(lineIndex, &required, infoLine)){
+        const unsigned int readLineIndex = globalAttribute->ascending ? lineIndex : globalAttribute->scanLineCount - 1 - lineIndex;
+        if (!ReadSingleScanLine(readLineIndex, &required, infoLine)){
             fprintf(stderr, "Failed to read scan line\n");
             free(infoLine);
             continue;
@@ -444,6 +451,7 @@ bool WriteHDF5(const char* filename, const GeodeticGrid* dataset, const HDFGloba
     }
 
     //write global attribute
+    const char* orbitDirection = globalAttribute->ascending ? "A" : "D";
     hid_t attrDataspaceID = H5Screate(H5S_SCALAR);
     if (attrDataspaceID < 0){
         fprintf(stderr, "Failed to create dataspace: %s\n", "Scan_Lines");
@@ -461,6 +469,9 @@ bool WriteHDF5(const char* filename, const GeodeticGrid* dataset, const HDFGloba
     hid_t endDateTimeID = H5Acreate(fileID, "Observing_Ending_DateTime", strType, attrDataspaceID, H5P_DEFAULT, H5P_DEFAULT);
     if (endDateTimeID < 0)
         fprintf(stderr, "Failed to create dataset: %s\n", "endDateTime");
+    hid_t orbitDirectionID = H5Acreate(fileID, "Orbit_Direction", H5T_NATIVE_CHAR, attrDataspaceID, H5P_DEFAULT, H5P_DEFAULT);
+    if (orbitDirectionID < 0)
+        fprintf(stderr, "Failed to create dataset: %s\n", "orbitDirection");
     herr_t status = H5Awrite(scanLineCountID, H5T_NATIVE_INT, &globalAttribute->scanLineCount);
     if (status < 0)
         fprintf(stderr, "Failed to write dataset: %s\n", "scanLineCount");
@@ -470,10 +481,14 @@ bool WriteHDF5(const char* filename, const GeodeticGrid* dataset, const HDFGloba
     status = H5Awrite(endDateTimeID, strType, ConstructDateTimeString(&globalAttribute->endDateTime));
     if (status < 0)
         fprintf(stderr, "Failed to write dataset: %s\n", "endDateTime");
+    status = H5Awrite(orbitDirectionID, H5T_NATIVE_CHAR, orbitDirection);
+    if (status < 0)
+        fprintf(stderr, "Failed to write dataset: %s\n", "orbitDirection");
     H5Tclose(strType);
     H5Aclose(scanLineCountID);
     H5Aclose(startDateTimeID);
     H5Aclose(endDateTimeID);
+    H5Aclose(orbitDirectionID);
     H5Sclose(attrDataspaceID);
     H5Fclose(fileID);
     return true;
