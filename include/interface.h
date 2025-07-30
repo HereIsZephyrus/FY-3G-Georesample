@@ -1,6 +1,6 @@
 #ifndef INTERFACE_H
 #define INTERFACE_H
-#define BATCH_SIZE 500
+//#define BATCH_SIZE 500
 
 #include <hdf5.h>
 #include "data.h"
@@ -12,15 +12,6 @@ typedef struct {
 typedef struct {
     hid_t dataspace2D, dataspace3D_2, dataspace3D_500;
     hid_t memspace2D, memspace3D_2, memspace3D_500;
-    
-    float* elevation_batch;        // [BATCH_SIZE][SCAN_ANGLE_COUNT]
-    float* latitude_batch;         // [BATCH_SIZE][SCAN_ANGLE_COUNT][2]
-    float* longitude_batch;        // [BATCH_SIZE][SCAN_ANGLE_COUNT][2]
-    float* groundHeight_batch;     // [BATCH_SIZE][SCAN_ANGLE_COUNT]
-    float* zenith_batch;           // [BATCH_SIZE][SCAN_ANGLE_COUNT]
-    float* value_batch;            // [BATCH_SIZE][SCAN_ANGLE_COUNT][SCAN_HEIGHT_COUNT]
-    float* binClutter_batch;       // [BATCH_SIZE][SCAN_ANGLE_COUNT]
-    float* height_batch;           // [BATCH_SIZE][SCAN_ANGLE_COUNT][SCAN_HEIGHT_COUNT]
 } BatchReadContext;
 
 bool InitBatchReadContext(BatchReadContext* ctx, hsize_t batchSize);
