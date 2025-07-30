@@ -18,7 +18,7 @@ int main(void) {
         RUN_TEST(test_interpolate);
     }
     else {
-        RUN_TEST(test_readHDF5);
+        RUN_TEST(test_comprehensive);
     }
     return UNITY_END();
 }

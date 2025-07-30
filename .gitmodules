@@ -4,3 +4,6 @@
 [submodule "tests/pyCartesianToGeodetic"]
 	path = tests/pyCartesianToGeodetic
 	url = https://github.com/purpleskyfall/XYZ2BLH
+[submodule "libspatialindex"]
+	path = libspatialindex
+	url = https://github.com/libspatialindex/libspatialindex.git
