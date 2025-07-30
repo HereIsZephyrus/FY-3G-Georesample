@@ -51,10 +51,6 @@ typedef struct{
     HDFGlobalAttribute globalAttribute;
 } ClipGridResult;
 
-typedef struct {
-    hid_t elevationID, latitudeID, longitudeID, zenithID, heightID, groundHeightID, valueID, binClutterID;
-} HDFBandRequired;
-
 DateTime CreateDateTime(const char* date, const char* time);
 int getNumber(const char* str, int length);
 char* ConstructDateTimeString(const DateTime* dateTime);
