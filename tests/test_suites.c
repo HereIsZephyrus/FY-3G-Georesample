@@ -17,9 +17,10 @@ int main(void) {
         RUN_TEST(test_geotransfer);
         RUN_TEST(test_readHDF5);
         RUN_TEST(test_interpolate);
+        RUN_TEST(test_comprehensive);
     }
     else {
-        RUN_TEST(test_readHDF5);
+        RUN_TEST(test_comprehensive);
     }
     return UNITY_END();
 }

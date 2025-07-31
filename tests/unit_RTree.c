@@ -142,8 +142,7 @@ void test_rstar3d_nearest_neighbor(void) {
         TEST_ASSERT_TRUE(result);
     }
     
-    RStarPoint* queryPoint = CreateRStarPoint(1.5, 1.5, 1.5, 0, NULL, 0);
-    TEST_ASSERT_NOT_NULL(queryPoint);
+    double queryPoint[3] = {1.5, 1.5, 1.5};
     
     SpatialQueryResult* nnResult = RStarIndex_NearestNeighborQuery(index, queryPoint, 4);
     TEST_ASSERT_NOT_NULL(nnResult);

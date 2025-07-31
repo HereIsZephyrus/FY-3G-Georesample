@@ -8,8 +8,24 @@
 #include "spatialindex/capi/sidx_api.h"
 #include "index.h"
 
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define INITIAL_CAPACITY 4
+
+static int compare_points_x(const void* a, const void* b) {
+    const RStarPoint* p1 = (const RStarPoint*)a;
+    const RStarPoint* p2 = (const RStarPoint*)b;
+    
+    if (p1->latitude < p2->latitude) return -1;
+    if (p1->latitude > p2->latitude) return 1;
+    return 0;
+}
+static int compare_points_y(const void* a, const void* b) {
+    const RStarPoint* p1 = (const RStarPoint*)a;
+    const RStarPoint* p2 = (const RStarPoint*)b;
+    
+    if (p1->longitude < p2->longitude) return -1;
+    if (p1->longitude > p2->longitude) return 1;
+    return 0;
+}
 
 IndexArray* CreateIndexArray() {
     IndexArray *arr = malloc(sizeof(IndexArray));
@@ -58,7 +74,7 @@ int GetNodeBalanceFactor(AVLNode *node) {
 
 void UpdateNodeHeight(AVLNode *node) {
     if (!node) return;
-    node->height = 1 + MAX(GetNodeHeight(node->left), GetNodeHeight(node->right));
+    node->height = 1 + fmax(GetNodeHeight(node->left), GetNodeHeight(node->right));
 }
 
 AVLNode* CreateAVLNode(float value, int arrayIndex) {
@@ -416,50 +432,13 @@ SpatialQueryResult* RStarIndex_IntersectionQuery(RStarIndex* index, const Boundi
     return queryResult;
 }
 
-SpatialQueryResult* RStarIndex_ContainmentQuery(RStarIndex* index, const BoundingBox* queryBox) {
-    if (!index || !queryBox || !IsRStarIndexValid(index))
-        return NULL;
-
-    double min[3] = {(double)queryBox->minLatitude, (double)queryBox->minLongitude, (double)queryBox->minHeight};
-    double max[3] = {(double)queryBox->maxLatitude, (double)queryBox->maxLongitude, (double)queryBox->maxHeight};
-
-    int64_t* ids;
-    uint64_t nResults;
-    RTError result = Index_Contains_id(index->spatialIndex, min, max, 3, &ids, &nResults);
-
-    if (result != RT_None || nResults == 0)
-        return NULL;
-
-    SpatialQueryResult* queryResult = CreateSpatialQueryResult();
-    if (!queryResult) {
-        Index_Free(ids);
-        return NULL;
-    }
-
-    queryResult->ids = (int64_t*)malloc(nResults * sizeof(int64_t));
-    if (!queryResult->ids) {
-        DestroySpatialQueryResult(queryResult);
-        Index_Free(ids);
-        return NULL;
-    }
-
-    memcpy(queryResult->ids, ids, nResults * sizeof(int64_t));
-    queryResult->count = (unsigned int)nResults;
-    queryResult->capacity = (unsigned int)nResults;
-    Index_Free(ids);
-    return queryResult;
-}
-
-SpatialQueryResult* RStarIndex_NearestNeighborQuery(RStarIndex* index, const RStarPoint* queryPoint, unsigned int k) {
+SpatialQueryResult* RStarIndex_NearestNeighborQuery(RStarIndex* index, const double queryPoint[3], unsigned int k) {
     if (!index || !queryPoint || !IsRStarIndexValid(index) || k == 0)
         return NULL;
 
-    double min[3] = {(double)queryPoint->latitude, (double)queryPoint->longitude, (double)queryPoint->height};
-    double max[3] = {(double)queryPoint->latitude, (double)queryPoint->longitude, (double)queryPoint->height};
-
     int64_t* ids;
     uint64_t nResults;
-    RTError result = Index_NearestNeighbors_id(index->spatialIndex, min, max, 3, &ids, &nResults);
+    RTError result = Index_NearestNeighbors_id(index->spatialIndex, queryPoint, queryPoint, 3, &ids, &nResults);
 
     if (result != RT_None || nResults == 0)
         return NULL;
@@ -655,9 +634,10 @@ RStarPointBatch* CreateRStarPointBatch(unsigned int initialCapacity) {
         fprintf(stderr, "Failed to allocate memory for RStarPointBatch\n");
         return NULL;
     }
-    batch->points = (RStarPoint*)malloc(initialCapacity * sizeof(RStarPoint));
+    batch->points[0] = (RStarPoint*)malloc(initialCapacity * sizeof(RStarPoint));
+    batch->points[1] = (RStarPoint*)malloc(initialCapacity * sizeof(RStarPoint));
     batch->capacity = initialCapacity;
-    if (!batch->points) {
+    if (!batch->points[0] || !batch->points[1]) {
         fprintf(stderr, "Failed to allocate memory for batch points array\n");
         free(batch);
         return NULL;
@@ -667,7 +647,8 @@ RStarPointBatch* CreateRStarPointBatch(unsigned int initialCapacity) {
 
 void DestroyRStarPointBatch(RStarPointBatch* batch) {
     if (!batch) return;
-    free(batch->points);
+    free(batch->points[0]);
+    free(batch->points[1]);
     free(batch);
 }
 
@@ -677,30 +658,10 @@ BulkLoadConfig* CreateDefaultBulkLoadConfig(unsigned int expectedDataSize) {
         fprintf(stderr, "Failed to allocate memory for BulkLoadConfig\n");
         return NULL;
     }
-
-    // Auto-tune parameters based on data size
-    if (expectedDataSize < 1000) {
-        config->nodeCapacity = 50;
-        config->fillFactor = 0.7;
-        config->pageSize = 1000;
-        config->numberOfPages = 10;
-    } else if (expectedDataSize < 10000) {
-        config->nodeCapacity = 100;
-        config->fillFactor = 0.8;
-        config->pageSize = 5000;
-        config->numberOfPages = 50;
-    } else if (expectedDataSize < 100000) {
-        config->nodeCapacity = 200;
-        config->fillFactor = 0.85;
-        config->pageSize = 10000;
-        config->numberOfPages = 100;
-    } else {
-        config->nodeCapacity = 300;
-        config->fillFactor = 0.9;
-        config->pageSize = 20000;
-        config->numberOfPages = 200;
-    }
-
+    config->nodeCapacity = 500;
+    config->fillFactor = 0.9;
+    config->pageSize = 20000;
+    config->numberOfPages = 200;
     config->enableParallelSort = expectedDataSize > 50000;
     return config;
 }
@@ -711,39 +672,21 @@ void DestroyBulkLoadConfig(BulkLoadConfig* config) {
     }
 }
 
-// Spatial sorting comparison function for STR algorithm
-static int compare_points_x(const void* a, const void* b) {
-    RStarPoint* p1 = *(RStarPoint**)a;
-    RStarPoint* p2 = *(RStarPoint**)b;
-    
-    if (p1->latitude < p2->latitude) return -1;
-    if (p1->latitude > p2->latitude) return 1;
-    return 0;
-}
-
-static int compare_points_y(const void* a, const void* b) {
-    RStarPoint* p1 = *(RStarPoint**)a;
-    RStarPoint* p2 = *(RStarPoint**)b;
-    
-    if (p1->longitude < p2->longitude) return -1;
-    if (p1->longitude > p2->longitude) return 1;
-    return 0;
-}
-
-void RStarPointBatch_SortSpatially(RStarPointBatch* batch) {
+void RStarPointBatch_SortSpatially(RStarPointBatch* batch, const unsigned int bandIndex) {
     if (!batch || batch->capacity == 0) return;
     // Sort first by X coordinate (latitude)
-    qsort(batch->points, batch->capacity, sizeof(RStarPoint), compare_points_x);
+    qsort(batch->points[bandIndex], batch->capacity, sizeof(RStarPoint), compare_points_x);
     // Then sort segments by Y coordinate for better spatial locality
     unsigned int segmentSize = (unsigned int)sqrt(batch->capacity);
     if (segmentSize == 0) segmentSize = 1;
+    #pragma omp parallel for shared(batch, segmentSize)
     for (unsigned int i = 0; i < batch->capacity; i += segmentSize) {
         unsigned int segmentEnd = (i + segmentSize < batch->capacity) ? i + segmentSize : batch->capacity;
-        qsort(&batch->points[i], segmentEnd - i, sizeof(RStarPoint*), compare_points_y);
+        qsort(&batch->points[bandIndex][i], segmentEnd - i, sizeof(RStarPoint), compare_points_y);
     }
 }
 
-RStarIndex* CreateRStarIndexFromBatch(RStarPointBatch* batch, const BulkLoadConfig* config) {
+RStarIndex* CreateRStarIndexFromBatch(const RStarPointBatch* batch, const unsigned int bandIndex, const BulkLoadConfig* config) {
     if (!batch || !config || batch->capacity == 0) {
         fprintf(stderr, "Invalid batch or config for bulk loading\n");
         return NULL;
@@ -772,7 +715,7 @@ RStarIndex* CreateRStarIndexFromBatch(RStarPointBatch* batch, const BulkLoadConf
     }
 
     for (unsigned int i = 0; i < batch->capacity; i++) {
-        RStarPoint* point = &batch->points[i];
+        RStarPoint* point = &batch->points[bandIndex][i];
         double min[3] = {point->latitude, point->longitude, point->height};
         double max[3] = {point->latitude, point->longitude, point->height};
         
@@ -798,9 +741,21 @@ RStarIndex* CreateRStarIndexFromBatch(RStarPointBatch* batch, const BulkLoadConf
     return index;
 }
 
-RStarIndex* CreateRStarIndexFromSortedBatch(RStarPointBatch* batch, const BulkLoadConfig* config) {
+RStarIndex* CreateRStarIndexFromSortedBatch(RStarPointBatch* batch, const unsigned int bandIndex, const BulkLoadConfig* config) {
     if (!batch || !config || batch->capacity == 0)
         return NULL;
-    RStarPointBatch_SortSpatially(batch);
-    return CreateRStarIndexFromBatch(batch, config);
+    RStarPointBatch_SortSpatially(batch, bandIndex);
+    return CreateRStarIndexFromBatch(batch, bandIndex, config);
+}
+
+void DestroyRStarTree(RStarTree* tree){
+    if (!tree) return;
+    for (unsigned int bandIndex = 0; bandIndex < 2; bandIndex++){
+        if (tree->index[bandIndex]){
+            Index_Destroy(tree->index[bandIndex]->spatialIndex);
+            IndexProperty_Destroy(tree->index[bandIndex]->properties);
+            free(tree->index[bandIndex]);
+        }
+    }
+    free(tree);
 }
