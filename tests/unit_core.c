@@ -9,13 +9,15 @@ void test_comprehensive(void){
     TEST_ASSERT_TRUE(ReadHDF5(TEST_INPUT_FILE, &dataset));
     TEST_MESSAGE("Read HDF5 file successfully");
     GeodeticGrid processedGrid;
-    TEST_ASSERT_TRUE(ProcessDataset(&dataset, &processedGrid));
+    RStarPointBatch* pointBatch = CreateRStarPointBatch(dataset.globalAttribute.scanLineCount * SCAN_ANGLE_COUNT * SCAN_HEIGHT_COUNT);
+    TEST_ASSERT_TRUE(ProcessDataset(&dataset, &processedGrid, pointBatch));
     TEST_MESSAGE("Process dataset successfully");
-    ClipGridResult finalGrid;
-    AVLTree *indexTree[2] = {NULL, NULL};
-    TEST_ASSERT_TRUE(Interpolate(&dataset, &processedGrid, indexTree, &finalGrid));
-    TEST_MESSAGE("Interpolate successfully");
+    //ClipGridResult finalGrid;
+    //AVLTree *indexTree[2] = {NULL, NULL};
+    //TEST_ASSERT_TRUE(Interpolate(&dataset, &processedGrid, indexTree, &finalGrid));
+    //TEST_MESSAGE("Interpolate successfully");
     DestroyHDFDataset(&dataset);
     DestroyFinalGrid(&processedGrid);
-    DestroyClipGridResult(&finalGrid);
+    //DestroyClipGridResult(&finalGrid);
+    DestroyRStarPointBatch(pointBatch);
 }

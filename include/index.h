@@ -127,8 +127,7 @@ float RStarPoint_Distance(const RStarPoint* p1, const RStarPoint* p2);
 void BoundingBox_Expand(BoundingBox* box, const RStarPoint* point);
 
 typedef struct {
-    RStarPoint** points;
-    unsigned int count;
+    RStarPoint* points;
     unsigned int capacity;
 } RStarPointBatch;
 
@@ -142,8 +141,6 @@ typedef struct {
 
 RStarPointBatch* CreateRStarPointBatch(unsigned int initialCapacity);
 void DestroyRStarPointBatch(RStarPointBatch* batch);
-bool RStarPointBatch_AddPoint(RStarPointBatch* batch, RStarPoint* point);
-bool RStarPointBatch_AddPoints(RStarPointBatch* batch, RStarPoint** points, unsigned int count);
 
 RStarIndex* CreateRStarIndexFromBatch(RStarPointBatch* batch, const BulkLoadConfig* config);
 BulkLoadConfig* CreateDefaultBulkLoadConfig(unsigned int expectedDataSize);

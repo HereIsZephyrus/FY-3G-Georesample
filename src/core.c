@@ -3,11 +3,12 @@
 #include "interpolate.h"
 #include "geotransfer.h"
 
-void CalculateGridData(const GridInfo* sampleGridInfo, GeodeticGrid* finalGrid, unsigned int bandIndex, unsigned int lineIndex, unsigned int angleIndex){
+void CalculateGridData(const GridInfo* sampleGridInfo, GeodeticGrid* geodeticGrid, RStarPointBatch* pointBatch, unsigned int bandIndex, unsigned int lineIndex, unsigned int angleIndex){
     /**
     @brief Calculate the interpolation
     @param sampleGridInfo: the sample grid info to calculate the interpolation
-    @param finalGrid: the final grid to store the data
+    @param geodeticGrid: the final grid to store the data
+    @param pointBatch: the point batch to store the data
     @param bandIndex: the band index
     @param lineIndex: the line index
     @param angleIndex: the angle index
@@ -16,47 +17,45 @@ void CalculateGridData(const GridInfo* sampleGridInfo, GeodeticGrid* finalGrid, 
     TransferGeodeticToCartesian(sampleGridInfo->groundB, sampleGridInfo->groundL, sampleGridInfo->groundH, &groundX, &groundY, &groundZ);
     CartesianInterpolator interpolator = calcInterParams(groundX, groundY, groundZ, sampleGridInfo->groundH,
                                                         sampleGridInfo->airB, sampleGridInfo->airL, sampleGridInfo->zeta);
-    for (unsigned int heightIndex = 0; heightIndex < finalGrid->heightCount; heightIndex++){
+    for (unsigned int heightIndex = 0; heightIndex < geodeticGrid->heightCount; heightIndex++){
         Coordinate coordinate = calcCartesian(&interpolator, sampleGridInfo->heightArray[heightIndex]);
-        const int index = lineIndex * SCAN_ANGLE_COUNT * finalGrid->heightCount + angleIndex * finalGrid->heightCount + heightIndex;
-        finalGrid->latitudeArray[bandIndex][index] = coordinate.l;
-        finalGrid->longitudeArray[bandIndex][index] = coordinate.b;
-        finalGrid->elevationArray[bandIndex][index] = coordinate.h;
-        finalGrid->valueArray[bandIndex][index] = sampleGridInfo->measuredArray[heightIndex];
+        const int index = lineIndex * SCAN_ANGLE_COUNT * geodeticGrid->heightCount + angleIndex * geodeticGrid->heightCount + heightIndex;
+        geodeticGrid->latitudeArray[bandIndex][index] = coordinate.l;
+        geodeticGrid->longitudeArray[bandIndex][index] = coordinate.b;
+        geodeticGrid->elevationArray[bandIndex][index] = coordinate.h;
+        geodeticGrid->valueArray[bandIndex][index] = sampleGridInfo->measuredArray[heightIndex];
+        if (index >= pointBatch->capacity)
+            fprintf(stderr, "Point batch capacity is not enough\n");
+        else
+            pointBatch->points[index] = *CreateRStarPoint(coordinate.l, coordinate.b, coordinate.h, index, NULL, 0);
     }
 }
 
-bool ProcessDataset(const HDFDataset* dataset, GeodeticGrid* finalGrid){
+bool ProcessDataset(const HDFDataset* dataset, GeodeticGrid* geodeticGrid, RStarPointBatch* pointBatch){
     /**
     @brief Construct final grid
     @param dataset: the dataset to construct the final grid
-    @param finalGrid: the final grid to store the data
+    @param geodeticGrid: the final grid to store the data
+    @param pointBatch: the point batch to store the data
     @return true if successful, false otherwise
     */
-    if (!InitGeodeticGrid(finalGrid, dataset->globalAttribute.scanLineCount, SCAN_HEIGHT_COUNT)){
+    if (!InitGeodeticGrid(geodeticGrid, dataset->globalAttribute.scanLineCount, SCAN_HEIGHT_COUNT)){
         fprintf(stderr, "Failed to initialize final grid\n");
         return false;
     }
     for (int bandIndex = 0; bandIndex < 2; bandIndex++){
-        #pragma omp parallel for shared(dataset, finalGrid, bandIndex)
-        for (unsigned int lineIndex = 0; lineIndex < finalGrid->lineCount; lineIndex++)
+        #pragma omp parallel for shared(dataset, geodeticGrid, bandIndex)
+        for (unsigned int lineIndex = 0; lineIndex < geodeticGrid->lineCount; lineIndex++)
             for (unsigned int angleIndex = 0; angleIndex < SCAN_ANGLE_COUNT; angleIndex++){
                 CalculateGridData( &dataset->infoArray[bandIndex][lineIndex][angleIndex], 
-                                        finalGrid, bandIndex, lineIndex, angleIndex);
+                                        geodeticGrid, pointBatch, bandIndex, lineIndex, angleIndex);
             }
     }
     return true;
 }
 
+/*
 bool InterpolateClipGrid(AVLTree* indexTree, const float* longitudeArray, const float* valueArray, ClipGrid* clipGrid){
-    /**
-    @brief Interpolate the clip grid
-    @param indexTree: the index tree to store the data
-    @param longitudeArray: the longitude array to store the data
-    @param valueArray: the value array to store the data
-    @param clipGrid: the clip grid to store the data
-    @return true if successful, false otherwise
-    */
     for (unsigned int b = 0; b < clipGrid->latitudeCount; b++)
         for (unsigned int l = 0; l < clipGrid->longitudeCount; l++)
             for (unsigned int h = 0; h < clipGrid->heightCount; h++){
@@ -68,14 +67,6 @@ bool InterpolateClipGrid(AVLTree* indexTree, const float* longitudeArray, const 
 }
 
 bool Interpolate(const HDFDataset* dataset, const GeodeticGrid* processedGrid, AVLTree* indexTree[2], ClipGridResult* finalGrid){
-    /**
-    @brief Interpolate the data
-    @param dataset: the dataset to interpolate the data
-    @param processedGrid: the processed grid to interpolate the data
-    @param indexTree: the index tree to store the data
-    @param finalGrid: the final grid to store the data
-    @return true if successful, false otherwise
-    */
     if (!InitClipGridArray(dataset, DEFAULT_GRID_SIZE, DEFAULT_MINIMAL_HEIGHT, DEFAULT_HEIGHT_GAP, DEFAULT_HEIGHT_COUNT, finalGrid)){
         fprintf(stderr, "Failed to initialize final grid\n");
         return false;
@@ -98,3 +89,4 @@ bool Interpolate(const HDFDataset* dataset, const GeodeticGrid* processedGrid, A
     }
     return true;
 }
+*/

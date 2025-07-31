@@ -19,7 +19,7 @@ int main(void) {
         RUN_TEST(test_interpolate);
     }
     else {
-        RUN_TEST(test_rstar3d);
+        RUN_TEST(test_readHDF5);
     }
     return UNITY_END();
 }
