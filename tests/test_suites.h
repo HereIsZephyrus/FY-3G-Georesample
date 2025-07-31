@@ -8,3 +8,4 @@ void test_readHDF5(void);
 void test_interpolate(void);
 void test_comprehensive(void);
 void test_index(void);
+void test_rstar3d(void);
