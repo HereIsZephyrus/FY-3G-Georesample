@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <spatialindex/capi/sidx_api.h>
 
+// ================================ AVL Tree (currently aborted) ================================
 typedef struct {
     int *indices;
     unsigned int size; // real size
@@ -64,6 +65,7 @@ int AVLNodeGetBalanceFactor(AVLNode *node);
 bool AVLTreeValidateBalance(AVLTree *tree);
 bool AVLNodeValidateBalance(AVLNode *node);
 
+// ================================ R* Tree (currently working) ================================
 typedef struct {
     IndexH spatialIndex;
     IndexPropertyH properties;
@@ -124,4 +126,29 @@ bool BoundingBox_ContainsPoint(const BoundingBox* box, const RStarPoint* point);
 float RStarPoint_Distance(const RStarPoint* p1, const RStarPoint* p2);
 void BoundingBox_Expand(BoundingBox* box, const RStarPoint* point);
 
+typedef struct {
+    RStarPoint** points;
+    unsigned int count;
+    unsigned int capacity;
+} RStarPointBatch;
+
+typedef struct {
+    unsigned int nodeCapacity;
+    double fillFactor;
+    unsigned int pageSize;
+    unsigned int numberOfPages;
+    bool enableParallelSort;
+} BulkLoadConfig;
+
+RStarPointBatch* CreateRStarPointBatch(unsigned int initialCapacity);
+void DestroyRStarPointBatch(RStarPointBatch* batch);
+bool RStarPointBatch_AddPoint(RStarPointBatch* batch, RStarPoint* point);
+bool RStarPointBatch_AddPoints(RStarPointBatch* batch, RStarPoint** points, unsigned int count);
+
+RStarIndex* CreateRStarIndexFromBatch(RStarPointBatch* batch, const BulkLoadConfig* config);
+BulkLoadConfig* CreateDefaultBulkLoadConfig(unsigned int expectedDataSize);
+void DestroyBulkLoadConfig(BulkLoadConfig* config);
+
+RStarIndex* CreateRStarIndexFromSortedBatch(RStarPointBatch* batch, const BulkLoadConfig* config);
+void RStarPointBatch_SortSpatially(RStarPointBatch* batch);
 #endif
