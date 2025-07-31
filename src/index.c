@@ -626,13 +626,12 @@ bool BoundingBox_ContainsPoint(const BoundingBox* box, const RStarPoint* point) 
             point->height >= box->minHeight && point->height <= box->maxHeight);
 }
 
-float Point_Distance(const RStarPoint* p1, const RStarPoint* p2) {
+float RStarPoint_Distance(const RStarPoint* p1, const RStarPoint* p2) {
     if (!p1 || !p2) return -1.0;
 
     double dx = p1->latitude - p2->latitude;
     double dy = p1->longitude - p2->longitude;
     double dz = p1->height - p2->height;
-
     return sqrt(dx*dx + dy*dy + dz*dz);
 }
 

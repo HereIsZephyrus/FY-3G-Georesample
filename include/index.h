@@ -65,12 +65,11 @@ bool AVLTreeValidateBalance(AVLTree *tree);
 bool AVLNodeValidateBalance(AVLNode *node);
 
 typedef struct {
-    IndexH spatialIndex;        // libspatialindex的索引句柄
-    IndexPropertyH properties;  // 索引属性
-    bool isValid;              // 索引是否有效
-    unsigned int dimension;    // 维度 (固定为3)
-    unsigned int capacity;     // 节点容量
-    double fillFactor;         // 填充因子
+    IndexH spatialIndex;
+    IndexPropertyH properties;
+    bool isValid;
+    unsigned int capacity; // must greater than 32
+    double fillFactor;
 } RStarIndex;
 
 typedef struct {
