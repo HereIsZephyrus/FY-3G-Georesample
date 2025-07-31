@@ -13,12 +13,13 @@ int main(void) {
     UNITY_BEGIN();
     if (test_round){
         RUN_TEST(test_index);
+        RUN_TEST(test_rstar3d);
         RUN_TEST(test_geotransfer);
         RUN_TEST(test_readHDF5);
         RUN_TEST(test_interpolate);
     }
     else {
-        RUN_TEST(test_comprehensive);
+        RUN_TEST(test_rstar3d);
     }
     return UNITY_END();
 }

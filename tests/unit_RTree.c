@@ -1,227 +1,173 @@
 #include "test_suites.h"
-#include "../include/index.h"
 #include <float.h>
 #include <string.h>
+#include "index.h"
 
-// 基础功能测试 - 简化版本，专注于测试R树功能
 
 void test_rstar3d_basic_functionality(void) {
-    printf("测试三维R*树基础功能...\n");
+    TEST_MESSAGE("Start RStar3D basic functionality test");
     
-    // 这里我们先测试基本的libspatialindex C API功能
-    // 创建索引属性
-    IndexPropertyH props = IndexProperty_Create();
-    TEST_ASSERT_NOT_NULL(props);
-    
-    // 设置为3维R*树
-    IndexProperty_SetIndexType(props, RT_RTree);
-    IndexProperty_SetIndexVariant(props, RT_Star);
-    IndexProperty_SetDimension(props, 3);
-    IndexProperty_SetIndexStorage(props, RT_Memory);
-    IndexProperty_SetIndexCapacity(props, 50);
-    IndexProperty_SetLeafCapacity(props, 50);
-    IndexProperty_SetFillFactor(props, 0.7);
-    
-    // 创建索引
-    IndexH index = Index_Create(props);
+    RStarIndex* index = CreateRStarIndex(50, 0.7);
     TEST_ASSERT_NOT_NULL(index);
-    TEST_ASSERT_TRUE(Index_IsValid(index));
+    TEST_ASSERT_TRUE(IsRStarIndexValid(index));
     
-    // 插入一些3D点
-    double min1[3] = {1.0, 2.0, 3.0};
-    double max1[3] = {1.0, 2.0, 3.0};
-    RTError result1 = Index_InsertData(index, 1, min1, max1, 3, NULL, 0);
-    TEST_ASSERT_EQUAL_INT(RT_None, result1);
+    RStarPoint* point1 = CreateRStarPoint(1.0, 2.0, 3.0, 1, NULL, 0);
+    TEST_ASSERT_NOT_NULL(point1);
+    bool result1 = RStarIndex_InsertPoint(index, point1);
+    TEST_ASSERT_TRUE(result1);
     
-    double min2[3] = {4.0, 5.0, 6.0};
-    double max2[3] = {4.0, 5.0, 6.0};
-    RTError result2 = Index_InsertData(index, 2, min2, max2, 3, NULL, 0);
-    TEST_ASSERT_EQUAL_INT(RT_None, result2);
+    RStarPoint* point2 = CreateRStarPoint(4.0, 4.9, 4.9, 2, NULL, 0);
+    TEST_ASSERT_NOT_NULL(point2);
+    bool result2 = RStarIndex_InsertPoint(index, point2);
+    TEST_ASSERT_TRUE(result2);
     
-    double min3[3] = {7.0, 8.0, 9.0};
-    double max3[3] = {7.0, 8.0, 9.0};
-    RTError result3 = Index_InsertData(index, 3, min3, max3, 3, NULL, 0);
-    TEST_ASSERT_EQUAL_INT(RT_None, result3);
+    RStarPoint* point3 = CreateRStarPoint(7.0, 8.0, 9.0, 3, NULL, 0);
+    TEST_ASSERT_NOT_NULL(point3);
+    bool result3 = RStarIndex_InsertPoint(index, point3);
+    TEST_ASSERT_TRUE(result3);
     
-    // 执行相交查询
-    double queryMin[3] = {0.0, 0.0, 0.0};
-    double queryMax[3] = {5.0, 5.0, 5.0};
-    int64_t* ids;
-    uint64_t nResults;
+    BoundingBox* queryBox = CreateBoundingBox(0.0, 0.0, 0.0, 5.0, 5.0, 5.0);
+    TEST_ASSERT_NOT_NULL(queryBox);
     
-    RTError queryResult = Index_Intersects_id(index, queryMin, queryMax, 3, &ids, &nResults);
-    TEST_ASSERT_EQUAL_INT(RT_None, queryResult);
-    TEST_ASSERT_TRUE(nResults >= 2);  // 应该找到至少2个点
+    SpatialQueryResult* queryResult = RStarIndex_IntersectionQuery(index, queryBox);
+    TEST_ASSERT_NOT_NULL(queryResult);
+    TEST_ASSERT_TRUE(queryResult->count >= 2);
     
-    // 验证结果
     bool found_id1 = false, found_id2 = false;
-    for (uint64_t i = 0; i < nResults; i++) {
-        if (ids[i] == 1) found_id1 = true;
-        if (ids[i] == 2) found_id2 = true;
+    for (unsigned int i = 0; i < queryResult->count; i++) {
+        if (queryResult->ids[i] == 1) found_id1 = true;
+        if (queryResult->ids[i] == 2) found_id2 = true;
     }
     TEST_ASSERT_TRUE(found_id1);
     TEST_ASSERT_TRUE(found_id2);
     
-    // 执行计数查询
-    uint64_t count;
-    RTError countResult = Index_Intersects_count(index, queryMin, queryMax, 3, &count);
-    TEST_ASSERT_EQUAL_INT(RT_None, countResult);
-    TEST_ASSERT_EQUAL_INT(nResults, count);
+    unsigned int count = RStarIndex_IntersectionCount(index, queryBox);
+    TEST_ASSERT_EQUAL_INT(queryResult->count, count);
     
-    // 获取索引边界
-    double* pMins;
-    double* pMaxs;
-    uint32_t nDimension;
-    RTError boundsResult = Index_GetBounds(index, &pMins, &pMaxs, &nDimension);
-    TEST_ASSERT_EQUAL_INT(RT_None, boundsResult);
-    TEST_ASSERT_EQUAL_INT(3, nDimension);
-    TEST_ASSERT_TRUE(pMins[0] <= 1.0);
-    TEST_ASSERT_TRUE(pMaxs[0] >= 7.0);
-    TEST_ASSERT_TRUE(pMins[1] <= 2.0);
-    TEST_ASSERT_TRUE(pMaxs[1] >= 8.0);
-    TEST_ASSERT_TRUE(pMins[2] <= 3.0);
-    TEST_ASSERT_TRUE(pMaxs[2] >= 9.0);
+    BoundingBox bounds;
+    bool boundsResult = RStarIndex_GetBounds(index, &bounds);
+    TEST_ASSERT_TRUE(boundsResult);
+    TEST_ASSERT_TRUE(bounds.minLatitude <= 1.0);
+    TEST_ASSERT_TRUE(bounds.maxLatitude >= 7.0);
+    TEST_ASSERT_TRUE(bounds.minLongitude <= 2.0);
+    TEST_ASSERT_TRUE(bounds.maxLongitude >= 8.0);
+    TEST_ASSERT_TRUE(bounds.minHeight <= 3.0);
+    TEST_ASSERT_TRUE(bounds.maxHeight >= 9.0);
     
-    // 清理资源
-    Index_Free(ids);
-    Index_Free(pMins);
-    Index_Free(pMaxs);
-    Index_Destroy(index);
-    IndexProperty_Destroy(props);
+    DestroySpatialQueryResult(queryResult);
+    DestroyBoundingBox(queryBox);
+    DestroyRStarPoint(point1);
+    DestroyRStarPoint(point2);
+    DestroyRStarPoint(point3);
+    DestroyRStarIndex(index);
     
-    printf("三维R*树基础功能测试完成!\n");
+    TEST_MESSAGE("RStar3D basic functionality test completed");
 }
 
 void test_rstar3d_bounding_box_operations(void) {
-    printf("测试三维边界框操作...\n");
+    TEST_MESSAGE("Start RStar3D bounding box operations test");
     
-    // 创建索引
-    IndexPropertyH props = IndexProperty_Create();
-    IndexProperty_SetIndexType(props, RT_RTree);
-    IndexProperty_SetIndexVariant(props, RT_Star);
-    IndexProperty_SetDimension(props, 3);
-    IndexProperty_SetIndexStorage(props, RT_Memory);
-    IndexProperty_SetIndexCapacity(props, 50);
-    IndexProperty_SetLeafCapacity(props, 50);
-    IndexProperty_SetFillFactor(props, 0.7);
-    
-    IndexH index = Index_Create(props);
+    RStarIndex* index = CreateRStarIndex(50, 0.7);
     TEST_ASSERT_NOT_NULL(index);
     
-    // 插入3D边界框
-    double min1[3] = {0.0, 0.0, 0.0};
-    double max1[3] = {2.0, 2.0, 2.0};
+    BoundingBox* bbox1 = CreateBoundingBox(0.0, 0.0, 0.0, 2.0, 2.0, 2.0);
+    TEST_ASSERT_NOT_NULL(bbox1);
     const char* data1 = "边界框1";
-    RTError result1 = Index_InsertData(index, 100, min1, max1, 3, 
-                                      (const uint8_t*)data1, strlen(data1) + 1);
-    TEST_ASSERT_EQUAL_INT(RT_None, result1);
+    bool result1 = RStarIndex_InsertBoundingBox(index, 100, bbox1, data1, strlen(data1) + 1);
+    TEST_ASSERT_TRUE(result1);
     
-    double min2[3] = {5.0, 5.0, 5.0};
-    double max2[3] = {7.0, 7.0, 7.0};
+    BoundingBox* bbox2 = CreateBoundingBox(5.0, 5.0, 5.0, 7.0, 7.0, 7.0);
+    TEST_ASSERT_NOT_NULL(bbox2);
     const char* data2 = "边界框2";
-    RTError result2 = Index_InsertData(index, 101, min2, max2, 3, 
-                                      (const uint8_t*)data2, strlen(data2) + 1);
-    TEST_ASSERT_EQUAL_INT(RT_None, result2);
+    bool result2 = RStarIndex_InsertBoundingBox(index, 101, bbox2, data2, strlen(data2) + 1);
+    TEST_ASSERT_TRUE(result2);
     
-    // 相交查询 - 应该与第一个边界框相交
-    double queryMin[3] = {1.0, 1.0, 1.0};
-    double queryMax[3] = {3.0, 3.0, 3.0};
-    int64_t* ids;
-    uint64_t nResults;
+    BoundingBox* queryBox = CreateBoundingBox(1.0, 1.0, 1.0, 3.0, 3.0, 3.0);
+    TEST_ASSERT_NOT_NULL(queryBox);
     
-    RTError queryResult = Index_Intersects_id(index, queryMin, queryMax, 3, &ids, &nResults);
-    TEST_ASSERT_EQUAL_INT(RT_None, queryResult);
-    TEST_ASSERT_TRUE(nResults >= 1);
+    SpatialQueryResult* queryResult = RStarIndex_IntersectionQuery(index, queryBox);
+    TEST_ASSERT_NOT_NULL(queryResult);
+    TEST_ASSERT_TRUE(queryResult->count >= 1);
     
     bool found_bbox1 = false;
-    for (uint64_t i = 0; i < nResults; i++) {
-        if (ids[i] == 100) found_bbox1 = true;
+    for (unsigned int i = 0; i < queryResult->count; i++) {
+        if (queryResult->ids[i] == 100) found_bbox1 = true;
     }
     TEST_ASSERT_TRUE(found_bbox1);
     
-    // 删除边界框
-    RTError deleteResult = Index_DeleteData(index, 100, min1, max1, 3);
-    TEST_ASSERT_EQUAL_INT(RT_None, deleteResult);
+    bool deleteResult = RStarIndex_DeleteBoundingBox(index, 100, bbox1);
+    TEST_ASSERT_TRUE(deleteResult);
     
-    // 再次查询验证删除
-    Index_Free(ids);
-    RTError queryResult2 = Index_Intersects_id(index, queryMin, queryMax, 3, &ids, &nResults);
-    TEST_ASSERT_EQUAL_INT(RT_None, queryResult2);
+    DestroySpatialQueryResult(queryResult);
+    queryResult = RStarIndex_IntersectionQuery(index, queryBox);
     
     bool found_bbox1_after_delete = false;
-    for (uint64_t i = 0; i < nResults; i++) {
-        if (ids[i] == 100) found_bbox1_after_delete = true;
+    if (queryResult) {
+        for (unsigned int i = 0; i < queryResult->count; i++) {
+            if (queryResult->ids[i] == 100) found_bbox1_after_delete = true;
+        }
     }
     TEST_ASSERT_FALSE(found_bbox1_after_delete);
     
-    // 清理资源
-    Index_Free(ids);
-    Index_Destroy(index);
-    IndexProperty_Destroy(props);
+    if (queryResult) DestroySpatialQueryResult(queryResult);
+    DestroyBoundingBox(queryBox);
+    DestroyBoundingBox(bbox1);
+    DestroyBoundingBox(bbox2);
+    DestroyRStarIndex(index);
     
-    printf("三维边界框操作测试完成!\n");
+    TEST_MESSAGE("RStar3D bounding box operations test completed");
 }
 
 void test_rstar3d_nearest_neighbor(void) {
-    printf("测试三维最近邻查询...\n");
+    TEST_MESSAGE("Start RStar3D nearest neighbor test");
     
-    // 创建索引
-    IndexPropertyH props = IndexProperty_Create();
-    IndexProperty_SetIndexType(props, RT_RTree);
-    IndexProperty_SetIndexVariant(props, RT_Star);
-    IndexProperty_SetDimension(props, 3);
-    IndexProperty_SetIndexStorage(props, RT_Memory);
-    
-    IndexH index = Index_Create(props);
+    RStarIndex* index = CreateRStarIndex(50, 0.7);
     TEST_ASSERT_NOT_NULL(index);
     
-    // 插入多个点
-    double points[][3] = {
+    float points[][3] = {
         {1.0, 1.0, 1.0},   // ID: 1
         {2.0, 2.0, 2.0},   // ID: 2
         {5.0, 5.0, 5.0},   // ID: 3
         {10.0, 10.0, 10.0} // ID: 4
     };
     
+    RStarPoint* rstarPoints[4];
     for (int i = 0; i < 4; i++) {
-        RTError result = Index_InsertData(index, i + 1, points[i], points[i], 3, NULL, 0);
-        TEST_ASSERT_EQUAL_INT(RT_None, result);
+        rstarPoints[i] = CreateRStarPoint(points[i][0], points[i][1], points[i][2], i + 1, NULL, 0);
+        TEST_ASSERT_NOT_NULL(rstarPoints[i]);
+        bool result = RStarIndex_InsertPoint(index, rstarPoints[i]);
+        TEST_ASSERT_TRUE(result);
     }
     
-    // 最近邻查询 - 查找距离(1.5, 1.5, 1.5)最近的点
-    double queryPoint[3] = {1.5, 1.5, 1.5};
-    int64_t* ids;
-    uint64_t nResults;
+    RStarPoint* queryPoint = CreateRStarPoint(1.5, 1.5, 1.5, 0, NULL, 0);
+    TEST_ASSERT_NOT_NULL(queryPoint);
     
-    RTError nnResult = Index_NearestNeighbors_id(index, queryPoint, queryPoint, 3, &ids, &nResults);
-    TEST_ASSERT_EQUAL_INT(RT_None, nnResult);
-    TEST_ASSERT_TRUE(nResults > 0);
+    SpatialQueryResult* nnResult = RStarIndex_NearestNeighborQuery(index, queryPoint, 4);
+    TEST_ASSERT_NOT_NULL(nnResult);
+    TEST_ASSERT_TRUE(nnResult->count > 0);
     
-    // 最近的点应该是ID为1或2的点
     bool found_close_point = false;
-    for (uint64_t i = 0; i < nResults; i++) {
-        if (ids[i] == 1 || ids[i] == 2) {
+    for (unsigned int i = 0; i < nnResult->count; i++) {
+        if (nnResult->ids[i] == 1 || nnResult->ids[i] == 2) {
             found_close_point = true;
             break;
         }
     }
     TEST_ASSERT_TRUE(found_close_point);
     
-    // 清理资源
-    Index_Free(ids);
-    Index_Destroy(index);
-    IndexProperty_Destroy(props);
+    DestroySpatialQueryResult(nnResult);
+    DestroyRStarPoint(queryPoint);
+    for (int i = 0; i < 4; i++)
+        DestroyRStarPoint(rstarPoints[i]);
+    DestroyRStarIndex(index);
     
-    printf("三维最近邻查询测试完成!\n");
+    TEST_MESSAGE("RStar3D nearest neighbor test completed");
 }
 
-// 主测试函数
 void test_rstar3d(void) {
-    printf("开始三维R*树测试...\n");
-    
+    TEST_MESSAGE("Start RStar3D test");
     RUN_TEST(test_rstar3d_basic_functionality);
     RUN_TEST(test_rstar3d_bounding_box_operations);
     RUN_TEST(test_rstar3d_nearest_neighbor);
-    
-    printf("三维R*树测试完成!\n");
+    TEST_MESSAGE("RStar3D test completed");
 }

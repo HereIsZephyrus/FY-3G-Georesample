@@ -533,7 +533,7 @@ void RStarIndex_ClearBuffer(RStarIndex* index) {
         Index_ClearBuffer(index->spatialIndex);
 }
 
-RStarPoint* CreatePoint(float latitude, float longitude, float height, int64_t id, const void* userData, size_t userDataSize) {
+RStarPoint* CreateRStarPoint(float latitude, float longitude, float height, int64_t id, const void* userData, size_t userDataSize) {
     RStarPoint* point = (RStarPoint*)malloc(sizeof(RStarPoint));
     if (!point) return NULL;
 
@@ -555,7 +555,7 @@ RStarPoint* CreatePoint(float latitude, float longitude, float height, int64_t i
     return point;
 }
 
-void DestroyPoint(RStarPoint* point) {
+void DestroyRStarPoint(RStarPoint* point) {
     if (point) {
         free(point->userData);
         free(point);

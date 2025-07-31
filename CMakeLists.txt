@@ -6,8 +6,8 @@ find_package(OpenMP REQUIRED)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopenmp")
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -g -O0 -Wall -Wextra")
 set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3 -Wall -march=native")
-add_subdirectory(tests/Unity)
 add_subdirectory(libspatialindex)
+add_subdirectory(tests/Unity)
 
 include_directories(${SpatialIndex_INCLUDE_DIRS})
 include_directories(${HDF5_INCLUDE_DIRS})
@@ -50,7 +50,8 @@ target_link_libraries(FY3G_Resampling_exe
     FY3G_Resampling
     ${HDF5_LIBRARIES}
     OpenMP::OpenMP_C
-    ${SpatialIndex_LIBRARIES}
+    spatialindex
+    spatialindex_c
 )
 
 add_executable(FY3G_Resampling_test ${TEST_FILES})
@@ -63,5 +64,6 @@ target_link_libraries(FY3G_Resampling_test
     FY3G_Resampling
     ${HDF5_LIBRARIES}
     OpenMP::OpenMP_C
-    ${SpatialIndex_LIBRARIES}
+    spatialindex
+    spatialindex_c
 )

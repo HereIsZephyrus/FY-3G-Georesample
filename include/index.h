@@ -94,7 +94,7 @@ typedef struct {
 
 RStarIndex* CreateRStarIndex(unsigned int capacity, double fillFactor);
 void DestroyRStarIndex(RStarIndex* index);
-bool RStarIndex_IsValid(RStarIndex* index);
+bool IsRStarIndexValid(RStarIndex* index);
 
 bool RStarIndex_InsertPoint(RStarIndex* index, const RStarPoint* point);
 bool RStarIndex_InsertBoundingBox(RStarIndex* index, int64_t id, const BoundingBox* bbox, 
