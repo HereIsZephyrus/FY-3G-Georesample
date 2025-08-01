@@ -145,7 +145,7 @@ bool InitClipGridArray(const HDFDataset* dataset, int gridSize, int initHeight, 
     for (int bandIndex = 0; bandIndex < 2; bandIndex++){
         float globalMaxLatitude, globalMinLatitude, globalMaxLongitude, globalMinLongitude; // longitude is wrapped
         GetGeodeticRange(dataset->infoArray[bandIndex], lineCount, &globalMaxLatitude, &globalMinLatitude, &globalMaxLongitude, &globalMinLongitude);
-        finalGrid->clipCount = ceil((globalMaxLatitude - globalMinLatitude) / MAX_LONGITUDE_WIDTH);
+        finalGrid->clipCount = ceil((globalMaxLatitude - globalMinLatitude) / DEFAULT_MAX_LONGITUDE_WIDTH);
         finalGrid->clipGrids[bandIndex] = (ClipGrid*)malloc(finalGrid->clipCount * sizeof(ClipGrid));
         const float realClipLatitudeGap = (globalMaxLatitude - globalMinLatitude) / finalGrid->clipCount;
         const float realClipLatitudeCount = ceil(realClipLatitudeGap / latitudeGap);

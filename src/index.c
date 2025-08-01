@@ -213,13 +213,10 @@ AVLNode* SearchAVLTree(AVLTree *tree, float value) {
     return SearchAVLNode(tree->root, value);
 }
 
-void AVLNodeRangeQuery(AVLNode *node, float latMin, float latMax, const float *longitudeArray, float lonMin, float lonMax, int **result, unsigned int *count, unsigned int *capacity) {
+void AVLNodeRangeQuery(AVLNode *node, float minHeight, float maxHeight, int **result, unsigned int *count, unsigned int *capacity) {
     if (!node) return;
-    if (node->value >= latMin && node->value <= latMax) {
+    if (node->value >= minHeight && node->value <= maxHeight) {
         for (unsigned int i = 0; i < node->indices->size; i++) {
-            // check if the longitude value is in the range
-            if (longitudeArray[node->indices->indices[i]] < lonMin || longitudeArray[node->indices->indices[i]] > lonMax)
-                continue;
             if (*count >= *capacity) {
                 *capacity *= 2;
                 *result = realloc(*result, *capacity * sizeof(int));
@@ -228,13 +225,30 @@ void AVLNodeRangeQuery(AVLNode *node, float latMin, float latMax, const float *l
         }
     }
     
-    if (node->value > latMin)
-        AVLNodeRangeQuery(node->left, latMin, latMax, longitudeArray, lonMin, lonMax, result, count, capacity);
-    if (node->value < latMax)
-        AVLNodeRangeQuery(node->right, latMin, latMax, longitudeArray, lonMin, lonMax, result, count, capacity);
+    if (node->value > minHeight)
+        AVLNodeRangeQuery(node->left, minHeight, maxHeight, result, count, capacity);
+    if (node->value < maxHeight)
+        AVLNodeRangeQuery(node->right, minHeight, maxHeight, result, count, capacity);
 }
 
-QueryResult* AVLTreeRangeQuery(AVLTree *tree, float latMin, float latMax, const float *longitudeArray, float lonMin, float lonMax){
+bool AVLNodeRangeExistQuery(AVLNode *node, float minHeight, float maxHeight) {
+    if (!node) return false;
+    if (node->value >= minHeight && node->value <= maxHeight) {
+        return true;
+    }
+    if (node->value > minHeight)
+        return AVLNodeRangeExistQuery(node->left, minHeight, maxHeight);
+    if (node->value < maxHeight)
+        return AVLNodeRangeExistQuery(node->right, minHeight, maxHeight);
+    return false;
+}
+
+bool AVLTreeRangeExistQuery(AVLTree *tree, float minHeight, float maxHeight){
+    if (!tree) return false;
+    return AVLNodeRangeExistQuery(tree->root, minHeight, maxHeight);
+}
+
+QueryResult* AVLTreeRangeQuery(AVLTree *tree, float minHeight, float maxHeight){
     if (!tree) return NULL;
     
     QueryResult *result = malloc(sizeof(QueryResult));
@@ -248,8 +262,7 @@ QueryResult* AVLTreeRangeQuery(AVLTree *tree, float latMin, float latMax, const 
     }
     
     result->count = 0;
-    AVLNodeRangeQuery(tree->root, latMin, latMax, longitudeArray, lonMin, lonMax, 
-                         &result->indices, &result->count, &capacity);
+    AVLNodeRangeQuery(tree->root, minHeight, maxHeight, &result->indices, &result->count, &capacity);
     return result;
 }
 
@@ -588,15 +601,7 @@ RStarIndex* CreateRStarIndexFromBatch(const RStarPointBatch* batch, const unsign
     IndexProperty_SetLeafCapacity(properties, config->nodeCapacity);
     IndexProperty_SetFillFactor(properties, config->fillFactor);
     
-    // 修正stride参数以匹配实际数据布局
-    // 根据libspatialindex源码，访问方式为: mins[i*d_i_stri + j*d_j_stri]
-    // 我们的数据布局: mins[validIndex * 3 + coordinate_index]
-    // 所以: d_i_stri=3, d_j_stri=1
-    IndexH spatialIndex = Index_CreateWithArray(properties, validPointCount, 3, 
-                                               1,  // i_stri: ID数组步长
-                                               3,  // d_i_stri: 每个点在坐标数组中的步长
-                                               1,  // d_j_stri: 坐标维度间的步长
-                                               ids, mins, maxs);
+    IndexH spatialIndex = Index_CreateWithArray(properties, validPointCount, 3, 1, 3,1, ids, mins, maxs);
 
     free(ids);
     free(mins);
@@ -625,6 +630,19 @@ RStarIndex* CreateRStarIndexFromBatch(const RStarPointBatch* batch, const unsign
     return index;
 }
 
+AVLTree* CreateAVLTreeFromBatch(const RStarPointBatch* pointBatch, const unsigned int startIndex, const unsigned int endIndex, const unsigned int bandIndex){
+    if (!pointBatch || pointBatch->capacity == 0 || startIndex >= endIndex)
+        return NULL;
+    AVLTree* tree = CreateAVLTree();
+    if (!tree) return NULL;
+    for (unsigned int i = startIndex; i < endIndex; i++){
+        RStarPoint* point = &pointBatch->points[bandIndex][i];
+        if (point->h == -1) continue;
+        InsertAVLTree(tree, point->h, i);
+    }
+    return tree;
+}
+
 RStarIndex* CreateRStarIndexFromSortedBatch(RStarPointBatch* batch, const unsigned int bandIndex, const BulkLoadConfig* config) {
     if (!batch || !config || batch->capacity == 0)
         return NULL;
@@ -632,7 +650,7 @@ RStarIndex* CreateRStarIndexFromSortedBatch(RStarPointBatch* batch, const unsign
     return CreateRStarIndexFromBatch(batch, 0, batch->capacity, bandIndex, config);
 }
 
-void DestroyRStarForest(RStarForest* forest){
+void DestroyRStarForest(IndexForest* forest){
     if (!forest) return;
     for (unsigned int bandIndex = 0; bandIndex < 2; bandIndex++){
         for (unsigned int treeIndex = 0; treeIndex < forest->forestSize; treeIndex++){
@@ -640,6 +658,9 @@ void DestroyRStarForest(RStarForest* forest){
                 Index_Destroy(forest->index[bandIndex][treeIndex]->spatialIndex);
                 IndexProperty_Destroy(forest->index[bandIndex][treeIndex]->properties);
                 free(forest->index[bandIndex][treeIndex]);
+            }
+            if (forest->hindex[bandIndex][treeIndex]){
+                DestroyAVLTree(forest->hindex[bandIndex][treeIndex]);
             }
         }
         free(forest->index[bandIndex]);

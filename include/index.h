@@ -6,7 +6,6 @@
 #include <stdbool.h>
 #include <spatialindex/capi/sidx_api.h>
 
-// ================================ AVL Tree (currently aborted) ================================
 typedef struct {
     int *indices;
     unsigned int size; // real size
@@ -51,9 +50,11 @@ AVLNode* SearchAVLTree(AVLTree *tree, float value);
 AVLNode* SearchAVLNode(AVLNode *node, float value);
 
 // Range query function
-QueryResult* AVLTreeRangeQuery(AVLTree *tree, float latMin, float latMax, const float *longitudeArray, float lonMin, float lonMax);
-void AVLNodeRangeQuery(AVLNode *node, float latMin, float latMax, const float *longitudeArray, float lonMin, float lonMax, int **result, unsigned int *count, unsigned int *capacity);
+QueryResult* AVLTreeRangeQuery(AVLTree *tree, float minHeight, float maxHeight);
+void AVLNodeRangeQuery(AVLNode *node, float minHeight, float maxHeight, int **result, unsigned int *count, unsigned int *capacity);
 void DestroyQueryResult(QueryResult *result);
+bool AVLNodeRangeExistQuery(AVLNode *node, float minHeight, float maxHeight);
+bool AVLTreeRangeExistQuery(AVLTree *tree, float minHeight, float maxHeight);
 
 int AVLTreeGetHeight(AVLTree *tree);
 bool AVLTreeIsEmpty(AVLTree *tree);
@@ -65,7 +66,6 @@ int AVLNodeGetBalanceFactor(AVLNode *node);
 bool AVLTreeValidateBalance(AVLTree *tree);
 bool AVLNodeValidateBalance(AVLNode *node);
 
-// ================================ R* Tree (currently working) ================================
 typedef struct {
     IndexH spatialIndex;
     IndexPropertyH properties;
@@ -77,9 +77,10 @@ typedef struct {
 
 typedef struct {
     RStarIndex** index[2]; // [bandIndex][clipCount]
+    AVLTree** hindex[2]; // [bandIndex][clipCount]
     unsigned int forestSize;
     unsigned int *treeSize;
-} RStarForest;
+} IndexForest;
 
 typedef struct {
     float x, y, z, h;
@@ -130,10 +131,11 @@ RStarPointBatch* CreateRStarPointBatch(unsigned int initialCapacity);
 void DestroyRStarPointBatch(RStarPointBatch* batch);
 
 RStarIndex* CreateRStarIndexFromBatch(const RStarPointBatch* batch, const unsigned int startIndex, const unsigned int endIndex, const unsigned int bandIndex, const BulkLoadConfig* config);
+AVLTree* CreateAVLTreeFromBatch(const RStarPointBatch* pointBatch, const unsigned int startIndex, const unsigned int endIndex, const unsigned int bandIndex);
 BulkLoadConfig* CreateDefaultBulkLoadConfig();
 void DestroyBulkLoadConfig(BulkLoadConfig* config);
 
 RStarIndex* CreateRStarIndexFromSortedBatch(RStarPointBatch* batch, const unsigned int bandIndex, const BulkLoadConfig* config);
 void RStarPointBatch_SortSpatially(RStarPointBatch* batch, const unsigned int bandIndex);
-void DestroyRStarForest(RStarForest* forest);
+void DestroyRStarForest(IndexForest* forest);
 #endif

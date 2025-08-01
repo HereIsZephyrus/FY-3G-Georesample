@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include "geotransfer.h"
 #include "interface.h"
-#include "networking.h"
 
 bool TransferData(const char *input_file, const char *output_file) {
     /**

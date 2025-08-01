@@ -68,7 +68,7 @@ bool ProcessDataset(const HDFDataset* dataset, GeodeticGrid* geodeticGrid, RStar
     return true;
 }
 
-bool CreateRStarForest(const RStarPointBatch* pointBatch, ClipGridResult* finalGrid, RStarForest* forest){
+bool CreateRStarForest(const RStarPointBatch* pointBatch, ClipGridResult* finalGrid, IndexForest* forest){
     bool success = true;
     //const unsigned int clipCount = finalGrid->clipCount;
     const unsigned int clipCount = 1; // for test
@@ -95,17 +95,55 @@ bool CreateRStarForest(const RStarPointBatch* pointBatch, ClipGridResult* finalG
     return success;
 }
 
-bool InterpolateClipGrid(const RStarPoint* points, RStarIndex* indexTree, const float* valueArray, ClipGrid* clipGrid){
-    if (!indexTree) return false;
+bool CreateAVLForest(const RStarPointBatch* pointBatch, ClipGridResult* finalGrid, IndexForest* forest){
+    bool success = true;
+    //const unsigned int clipCount = finalGrid->clipCount;
+    const unsigned int clipCount = 1; // for test
+    forest->forestSize = clipCount;
+    for (unsigned int bandIndex = 0; bandIndex < 2; bandIndex++){
+        forest->hindex[bandIndex] = (AVLTree**)malloc(clipCount * sizeof(AVLTree*));
+        #pragma omp parallel for shared(pointBatch, finalGrid, bandIndex, clipCount) reduction(||:success)
+        for (unsigned int clipIndex = 0; clipIndex < clipCount; clipIndex++){
+            const unsigned int startIndex = finalGrid->clipGrids[bandIndex][clipIndex].leftLineIndex * SCAN_ANGLE_COUNT * SCAN_HEIGHT_COUNT;
+            const unsigned int endIndex = (finalGrid->clipGrids[bandIndex][clipIndex].rightLineIndex + 1) * SCAN_ANGLE_COUNT * SCAN_HEIGHT_COUNT;
+            forest->hindex[bandIndex][clipIndex] = CreateAVLTreeFromBatch(pointBatch, startIndex, endIndex, bandIndex);
+            if (!forest->hindex[bandIndex][clipIndex]){
+                fprintf(stderr, "Failed to create AVL tree for band %d, clip %d\n", bandIndex, clipIndex);
+                success = false;
+            }
+        }
+    }
+    return success;
+}
+
+bool InterpolateClipGrid(const RStarPoint* points, AVLTree* hindexTree, RStarIndex* indexTree, const float* valueArray, ClipGrid* clipGrid){
+    /**
+    @brief Interpolate the clip grid
+    @param points: the points to interpolate
+    @param hindexTree: the AVL tree index
+    @param indexTree: the R* tree index
+    @param valueArray: the value array
+    @param clipGrid: the clip grid
+    */
+    if (!indexTree || !hindexTree){
+        fprintf(stderr, "Failed to interpolate clip grid, index tree or hindex tree is NULL\n");
+        return false;
+    }
+    unsigned int ignoreCount = 0;
     for (unsigned int b = 0; b < clipGrid->latitudeCount; b++)
         for (unsigned int l = 0; l < clipGrid->longitudeCount; l++)
             for (unsigned int h = 0; h < clipGrid->heightCount; h++){
                 const float latitude = clipGrid->minLatitude + b * clipGrid->latitudeGap;
                 const float longitude = clipGrid->minLongitude + l * clipGrid->longitudeGap;
                 const float height = clipGrid->minHeight + h * clipGrid->heightGap;
+                unsigned int index = b * clipGrid->longitudeCount * clipGrid->heightCount + l * clipGrid->heightCount + h;
+                if (!AVLTreeRangeExistQuery(hindexTree, height - DEFAULT_HEIGHT_GAP, height + DEFAULT_HEIGHT_GAP)){
+                    clipGrid->value[index] = -999;
+                    ++ignoreCount;
+                    continue;
+                }
                 double queryPoint[3];
                 TransferGeodeticToCartesian(latitude, longitude, height, &queryPoint[0], &queryPoint[1], &queryPoint[2]);
-                unsigned int index = b * clipGrid->longitudeCount * clipGrid->heightCount + l * clipGrid->heightCount + h;
                 SpatialQueryResult* result = RStarIndex_NearestNeighborQuery(indexTree, queryPoint, DEFAULT_K_NEIGHBOR);
                 FillQueryPointCoordinates(points, result->count, result);
                 if (!result){
@@ -116,6 +154,7 @@ bool InterpolateClipGrid(const RStarPoint* points, RStarIndex* indexTree, const 
                 //printf("The %u line, %u angle, %u height's value is %f\n", b, l, h, clipGrid->value[index]);
                 DestroySpatialQueryResult(result);
             }
+    printf("Ignore count: %u\n", ignoreCount);
     return true;
 }
 
@@ -130,7 +169,6 @@ bool InterpolateClipGridBatch(const RStarPoint* points, RStarIndex* indexTree, c
      */
     if (!indexTree || !clipGrid || !valueArray) return false;
     
-    clipGrid->latitudeCount = 1; //for test
     const unsigned int totalPoints = clipGrid->latitudeCount * clipGrid->longitudeCount * clipGrid->heightCount;
     if (totalPoints == 0) return true;
     
@@ -228,15 +266,20 @@ bool InterpolateClipGridBatch(const RStarPoint* points, RStarIndex* indexTree, c
     return true;
 }
 
-bool InterpolateGrid(const GeodeticGrid* processedGrid, const RStarPointBatch* pointBatch,RStarForest* forest, ClipGridResult* finalGrid){
+bool InterpolateGrid(const GeodeticGrid* processedGrid, const RStarPointBatch* pointBatch,IndexForest* forest, ClipGridResult* finalGrid){
     bool success = true;
     //unsigned int clipCount = finalGrid->clipCount;
     const unsigned int clipCount = 1; // for test
     for (unsigned int bandIndex = 0; bandIndex < 2; bandIndex++)
         //#pragma omp parallel for shared(forest, processedGrid, finalGrid, bandIndex, clipCount) reduction(||:success)
         for (unsigned int clipIndex = 0; clipIndex < clipCount; clipIndex++){
-            //if (!InterpolateClipGrid(pointBatch->points[bandIndex], forest->index[bandIndex][clipIndex], processedGrid->valueArray[bandIndex], &finalGrid->clipGrids[bandIndex][clipIndex])){
-            if (!InterpolateClipGridBatch(pointBatch->points[bandIndex], forest->index[bandIndex][clipIndex], processedGrid->valueArray[bandIndex], &finalGrid->clipGrids[bandIndex][clipIndex])){
+            if (!InterpolateClipGrid(
+                pointBatch->points[bandIndex], 
+                forest->hindex[bandIndex][clipIndex], 
+                forest->index[bandIndex][clipIndex], 
+                processedGrid->valueArray[bandIndex], 
+                &finalGrid->clipGrids[bandIndex][clipIndex])){
+            //if (!InterpolateClipGridBatch(pointBatch->points[bandIndex], forest->index[bandIndex][clipIndex], processedGrid->valueArray[bandIndex], &finalGrid->clipGrids[bandIndex][clipIndex])){
                 fprintf(stderr, "Failed to interpolate clip grid for band %d, clip %d\n", bandIndex, clipIndex);
                 success = false;
             }
@@ -244,45 +287,9 @@ bool InterpolateGrid(const GeodeticGrid* processedGrid, const RStarPointBatch* p
     return success;
 }
 
-bool InitClipResult(const HDFDataset* dataset, const RStarPointBatch* pointBatch, RStarForest* forest, ClipGridResult* finalGrid){
+bool InitClipResult(const HDFDataset* dataset, const RStarPointBatch* pointBatch, IndexForest* forest, ClipGridResult* finalGrid){
     InitClipGridArray(dataset, DEFAULT_GRID_SIZE, DEFAULT_MINIMAL_HEIGHT, DEFAULT_HEIGHT_GAP, DEFAULT_HEIGHT_COUNT, finalGrid);
+    CreateAVLForest(pointBatch, finalGrid, forest);
     CreateRStarForest(pointBatch, finalGrid, forest);
     return true;
 }
-
-/*
-bool InterpolateClipGrid(AVLTree* indexTree, const float* longitudeArray, const float* valueArray, ClipGrid* clipGrid){
-    for (unsigned int b = 0; b < clipGrid->latitudeCount; b++)
-        for (unsigned int l = 0; l < clipGrid->longitudeCount; l++)
-            for (unsigned int h = 0; h < clipGrid->heightCount; h++){
-                const float latitude = clipGrid->minLatitude + b * clipGrid->latitudeGap;
-                const float longitude = clipGrid->minLongitude + l * clipGrid->longitudeGap;
-                
-            }
-    return true;
-}
-
-bool Interpolate(const HDFDataset* dataset, const GeodeticGrid* processedGrid, AVLTree* indexTree[2], ClipGridResult* finalGrid){
-    if (!InitClipGridArray(dataset, DEFAULT_GRID_SIZE, DEFAULT_MINIMAL_HEIGHT, DEFAULT_HEIGHT_GAP, DEFAULT_HEIGHT_COUNT, finalGrid)){
-        fprintf(stderr, "Failed to initialize final grid\n");
-        return false;
-    }
-    const unsigned int clipCount = finalGrid->clipCount;
-    for (int bandIndex = 0; bandIndex < 2; bandIndex++){
-        if (!indexTree[bandIndex]){
-            indexTree[bandIndex] = CreateAVLTreeFromArray(processedGrid->latitudeArray[bandIndex], processedGrid->lineCount * SCAN_ANGLE_COUNT * processedGrid->heightCount);
-            if (!indexTree[bandIndex]){
-                fprintf(stderr, "Failed to create AVL tree\n");
-                return false;
-            }
-        }
-        for (unsigned int clipIndex = 0; clipIndex < clipCount; clipIndex++){
-            if (!InterpolateClipGrid(indexTree[bandIndex], processedGrid->longitudeArray[bandIndex], processedGrid->valueArray[bandIndex], &finalGrid->clipGrids[bandIndex][clipIndex])){
-                fprintf(stderr, "Failed to interpolate clip grid\n");
-                return false;
-            }
-        }
-    }
-    return true;
-}
-*/

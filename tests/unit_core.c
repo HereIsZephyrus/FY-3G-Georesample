@@ -12,7 +12,7 @@ void test_comprehensive(void){
     unsigned int capacity = dataset.globalAttribute.scanLineCount * SCAN_ANGLE_COUNT * SCAN_HEIGHT_COUNT;
     RStarPointBatch* pointBatch = CreateRStarPointBatch(capacity);
     TEST_ASSERT_TRUE(ProcessDataset(&dataset, &processedGrid, pointBatch));
-    RStarForest forest;
+    IndexForest forest;
     ClipGridResult finalGrid;
     TEST_ASSERT_TRUE(InitClipResult(&dataset, pointBatch, &forest, &finalGrid));
     TEST_MESSAGE("Init clip result successfully");
