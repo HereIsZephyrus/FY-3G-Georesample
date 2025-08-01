@@ -171,7 +171,7 @@ bool InitClipGridArray(const HDFDataset* dataset, int gridSize, int initHeight, 
     return true;
 }
 
-float InterpolateValueIDW(double queryPoint[3], const SpatialQueryResult* result, const float* valueArray, float power) {
+double InterpolateValueIDW(double queryPoint[3], const SpatialQueryResult* result, const float* valueArray, float power) {
     /**
      * @brief Calculate IDW (Inverse Distance Weighting) interpolated value
      * @param queryPoint: the query point coordinates [latitude, longitude, height]
@@ -187,6 +187,8 @@ float InterpolateValueIDW(double queryPoint[3], const SpatialQueryResult* result
     double weightSum = 0.0;
     double valueSum = 0.0;
     unsigned int validCount = 0;
+    double qx, qy, qz;
+    TransferGeodeticToCartesian(queryPoint[0], queryPoint[1], queryPoint[2], &qx, &qy, &qz);
     
     for (unsigned int i = 0; i < result->count; i++) {
         int64_t pointId = result->ids[i];
@@ -195,18 +197,19 @@ float InterpolateValueIDW(double queryPoint[3], const SpatialQueryResult* result
             continue;
         }
         RStarPoint* point = &result->points[i];
+        if (fabs(point->latitude - queryPoint[0]) > 1 || fabs(point->longitude - queryPoint[1]) > 1)
+            continue; //too far away
         if (point->height == -1) continue; // skip invalid points
-        double deltaLat = queryPoint[0] - point->latitude;
-        double deltaLon = queryPoint[1] - point->longitude;
-        double deltaHeight = queryPoint[2] - point->height;
-        double distance = sqrt(deltaLat * deltaLat + deltaLon * deltaLon + deltaHeight * deltaHeight);
-        if (distance < 1) return valueArray[pointId]; // return exact value
-
+        double px, py, pz;
+        TransferGeodeticToCartesian(point->latitude, point->longitude, point->height, &px, &py, &pz);
+        double distance = sqrt((qx - px) * (qx - px) + (qy - py) * (qy - py) + (queryPoint[2] - point->height) * (queryPoint[2] - point->height)) / 1e5;
+        if (distance > 5 * DEFAULT_GRID_SIZE) continue; // skip points too far away
+        if (distance < 0.5 * DEFAULT_GRID_SIZE) return valueArray[pointId]; // return exact value
         double weight = 1.0 / pow(distance, power);
         weightSum += weight;
         valueSum += weight * valueArray[pointId];
         validCount++;
     }
     if (validCount == 0 || weightSum == 0.0) return -999;
-    return (float)(valueSum / weightSum);
+    return (valueSum / weightSum);
 }

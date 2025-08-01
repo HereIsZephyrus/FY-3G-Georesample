@@ -9,6 +9,7 @@
 #include "index.h"
 
 #define INITIAL_CAPACITY 4
+#define DEFAULT_K_NEIGHBOR 5
 
 static int compare_points_x(const void* a, const void* b) {
     const RStarPoint* p1 = (const RStarPoint*)a;
@@ -793,4 +794,19 @@ void DestroyRStarForest(RStarForest* forest){
         free(forest->index[bandIndex]);
     }
     free(forest);
+}
+
+SpatialQueryResult* NearestNeighborQuery(const RStarPoint* points, RStarIndex* index, double queryPoint[3]) {
+    SpatialQueryResult* result = RStarIndex_NearestNeighborQuery(index, queryPoint, DEFAULT_K_NEIGHBOR);
+    if (!result) return NULL;
+    result->points = (RStarPoint*)malloc(result->count * sizeof(RStarPoint));
+    for (unsigned int i = 0; i < result->count; i++){
+        result->points[i].latitude = points[result->ids[i]].latitude;
+        result->points[i].longitude = points[result->ids[i]].longitude;
+        result->points[i].height = points[result->ids[i]].height;
+        result->points[i].id = result->ids[i];
+        result->points[i].userData = NULL;
+        result->points[i].userDataSize = 0;
+    }
+    return result;
 }

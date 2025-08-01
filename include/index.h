@@ -112,6 +112,7 @@ bool RStarIndex_DeleteBoundingBox(RStarIndex* index, int64_t id, const BoundingB
 
 SpatialQueryResult* RStarIndex_IntersectionQuery(RStarIndex* index, const BoundingBox* queryBox);
 SpatialQueryResult* RStarIndex_NearestNeighborQuery(RStarIndex* index, double queryPoint[3], unsigned int k);
+SpatialQueryResult* NearestNeighborQuery(const RStarPoint* points, RStarIndex* index, double queryPoint[3]);
 unsigned int RStarIndex_IntersectionCount(RStarIndex* index, const BoundingBox* queryBox);
 
 bool RStarIndex_GetBounds(RStarIndex* index, BoundingBox* bounds);
