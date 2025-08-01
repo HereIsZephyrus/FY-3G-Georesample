@@ -678,52 +678,95 @@ void RStarPointBatch_SortSpatially(RStarPointBatch* batch, const unsigned int ba
 }
 
 RStarIndex* CreateRStarIndexFromBatch(const RStarPointBatch* batch, const unsigned int startIndex, const unsigned int endIndex, const unsigned int bandIndex, const BulkLoadConfig* config) {
-    if (!batch || !config || batch->capacity == 0) {
-        fprintf(stderr, "Invalid batch or config for bulk loading\n");
+    if (!batch || !config || batch->capacity == 0 || startIndex >= endIndex) {
+        fprintf(stderr, "Invalid batch or config for optimized bulk loading\n");
+        return NULL;
+    }
+
+    unsigned int validPointCount = 0;
+    for (unsigned int i = startIndex; i < endIndex; i++)
+        if (batch->points[bandIndex][i].height != -1)
+            ++validPointCount;
+    
+    if (validPointCount == 0) {
+        fprintf(stderr, "No valid points for bulk loading\n");
+        return NULL;
+    }
+
+    int64_t* ids = (int64_t*)malloc(validPointCount * sizeof(int64_t));
+    double* mins = (double*)malloc(validPointCount * 3 * sizeof(double));
+    double* maxs = (double*)malloc(validPointCount * 3 * sizeof(double));
+    
+    if (!ids || !mins || !maxs) {
+        fprintf(stderr, "Failed to allocate arrays for bulk loading\n");
+        free(ids);
+        free(mins);
+        free(maxs);
+        return NULL;
+    }
+
+    unsigned int validIndex = 0;
+    for (unsigned int i = startIndex; i < endIndex; i++) {
+        RStarPoint* point = &batch->points[bandIndex][i];
+        if (point->height == -1) continue; // skip invalid point
+        ids[validIndex] = point->id;
+        mins[validIndex * 3 + 0] = (double)point->latitude;
+        mins[validIndex * 3 + 1] = (double)point->longitude;
+        mins[validIndex * 3 + 2] = (double)point->height;
+        maxs[validIndex * 3 + 0] = (double)point->latitude;
+        maxs[validIndex * 3 + 1] = (double)point->longitude;
+        maxs[validIndex * 3 + 2] = (double)point->height;
+        ++validIndex;
+    }
+
+    IndexPropertyH properties = IndexProperty_Create();
+    if (!properties) {
+        fprintf(stderr, "Failed to create index properties for optimized bulk loading\n");
+        free(ids);
+        free(mins);
+        free(maxs);
+        return NULL;
+    }
+
+    IndexProperty_SetIndexType(properties, RT_RTree);
+    IndexProperty_SetIndexVariant(properties, RT_Star);
+    IndexProperty_SetDimension(properties, 3);
+    IndexProperty_SetIndexStorage(properties, RT_Memory);
+    IndexProperty_SetIndexCapacity(properties, config->nodeCapacity);
+    IndexProperty_SetLeafCapacity(properties, config->nodeCapacity);
+    IndexProperty_SetFillFactor(properties, config->fillFactor);
+    
+    // 修正stride参数以匹配实际数据布局
+    // 根据libspatialindex源码，访问方式为: mins[i*d_i_stri + j*d_j_stri]
+    // 我们的数据布局: mins[validIndex * 3 + coordinate_index]
+    // 所以: d_i_stri=3, d_j_stri=1
+    IndexH spatialIndex = Index_CreateWithArray(properties, validPointCount, 3, 
+                                               1,  // i_stri: ID数组步长
+                                               3,  // d_i_stri: 每个点在坐标数组中的步长
+                                               1,  // d_j_stri: 坐标维度间的步长
+                                               ids, mins, maxs);
+
+    free(ids);
+    free(mins);
+    free(maxs);
+
+    if (!spatialIndex) {
+        fprintf(stderr, "Failed to create spatial index using bulk loading\n");
+        IndexProperty_Destroy(properties);
         return NULL;
     }
 
     RStarIndex* index = (RStarIndex*)malloc(sizeof(RStarIndex));
     if (!index) {
         fprintf(stderr, "Failed to allocate memory for RStarIndex wrapper\n");
+        Index_Destroy(spatialIndex);
+        IndexProperty_Destroy(properties);
         return NULL;
     }
 
-    index->properties = IndexProperty_Create();
-    if (!index->properties) {
-        fprintf(stderr, "Failed to create index properties for bulk loading\n");
-        return NULL;
-    }
-
-    IndexProperty_SetIndexType(index->properties, RT_RTree);
-    IndexProperty_SetIndexVariant(index->properties, RT_Star);
-    IndexProperty_SetDimension(index->properties, 3);
-    IndexProperty_SetIndexStorage(index->properties, RT_Memory);
-    IndexProperty_SetIndexCapacity(index->properties, config->nodeCapacity);
-    IndexProperty_SetLeafCapacity(index->properties, config->nodeCapacity);
-    IndexProperty_SetFillFactor(index->properties, config->fillFactor);
-
-    index->spatialIndex = Index_Create(index->properties);
-    
-    if (!index->spatialIndex) {
-        fprintf(stderr, "Failed to create spatial index\n");
-        IndexProperty_Destroy(index->properties);
-        return NULL;
-    }
-
-    unsigned int validPointCount = 0;
-    for (unsigned int i = startIndex; i < endIndex; i++) {
-        RStarPoint* point = &batch->points[bandIndex][i];
-        if (point->height == -1) continue; // invalid point(see core.c)
-        ++validPointCount;
-        double location[3] = {point->latitude, point->longitude, point->height};
-        RTError result = Index_InsertData(index->spatialIndex, point->id, location, location, 3, 
-                                         (const uint8_t*)point->userData, point->userDataSize);
-        if (result != RT_None) 
-            fprintf(stderr, "Failed to insert point %u during bulk loading\n", i);
-    }
-
-    index->isValid = Index_IsValid(index->spatialIndex) != 0;
+    index->spatialIndex = spatialIndex;
+    index->properties = properties;
+    index->isValid = Index_IsValid(spatialIndex) != 0;
     index->capacity = config->nodeCapacity;
     index->fillFactor = config->fillFactor;
     index->totalPointCount = validPointCount;

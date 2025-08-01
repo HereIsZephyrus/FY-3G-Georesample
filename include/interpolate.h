@@ -10,6 +10,7 @@
 #include <math.h>
 #include "geotransfer.h"
 #include "data.h"
+#include "index.h"
 
 typedef struct {
     double groundX, groundY, groundZ, groundH;
@@ -26,4 +27,5 @@ bool InitClipGridArray(const HDFDataset* dataset, const int gridSize, const int 
 float QueryClipMaxLongitude(const unsigned int leftLineIndex, const unsigned int rightLineIndex, const float minClipLatitude, const float maxClipLatitude, GridInfo** const infoArray);
 unsigned int SearchLineIndex(const float latitude, unsigned int bias, GridInfo** const infoArray, unsigned int left, unsigned int right);
 bool QueryBoundingBox(ClipGrid* clipGrid, GridInfo** const infoArray, const unsigned int lineCount);
+float InterpolateValueIDW(double queryPoint[3], const SpatialQueryResult* result, const float* valueArray, float power);
 #endif

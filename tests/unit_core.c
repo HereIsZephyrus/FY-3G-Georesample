@@ -16,7 +16,7 @@ void test_comprehensive(void){
     ClipGridResult finalGrid;
     TEST_ASSERT_TRUE(InitClipResult(&dataset, pointBatch, &forest, &finalGrid));
     TEST_MESSAGE("Init clip result successfully");
-    TEST_ASSERT_TRUE(InterpolateGrid(&dataset, &processedGrid, &forest, &finalGrid));
+    TEST_ASSERT_TRUE(InterpolateGrid(&processedGrid, &forest, &finalGrid));
     TEST_MESSAGE("Interpolate successfully");
     DestroyClipGridResult(&finalGrid);
     DestroyHDFDataset(&dataset);

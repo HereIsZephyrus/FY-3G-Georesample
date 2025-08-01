@@ -170,3 +170,43 @@ bool InitClipGridArray(const HDFDataset* dataset, int gridSize, int initHeight, 
     }
     return true;
 }
+
+float InterpolateValueIDW(double queryPoint[3], const SpatialQueryResult* result, const float* valueArray, float power) {
+    /**
+     * @brief Calculate IDW (Inverse Distance Weighting) interpolated value
+     * @param queryPoint: the query point coordinates [latitude, longitude, height]
+     * @param result: spatial query result containing nearest neighbor points
+     * @param valueArray: array of values corresponding to the points
+     * @param power: the power parameter for IDW (typically 2.0)
+     * @return interpolated value using IDW method
+     */
+    if (!result || !valueArray || result->count == 0) {
+        return -999; // invalid data
+    }
+    
+    double weightSum = 0.0;
+    double valueSum = 0.0;
+    unsigned int validCount = 0;
+    
+    for (unsigned int i = 0; i < result->count; i++) {
+        int64_t pointId = result->ids[i];
+        if (valueArray[pointId] <= -999) {
+            fprintf(stderr, "Invalid value at point %ld\n", pointId);
+            continue;
+        }
+        RStarPoint* point = &result->points[i];
+        if (point->height == -1) continue; // skip invalid points
+        double deltaLat = queryPoint[0] - point->latitude;
+        double deltaLon = queryPoint[1] - point->longitude;
+        double deltaHeight = queryPoint[2] - point->height;
+        double distance = sqrt(deltaLat * deltaLat + deltaLon * deltaLon + deltaHeight * deltaHeight);
+        if (distance < 1) return valueArray[pointId]; // return exact value
+
+        double weight = 1.0 / pow(distance, power);
+        weightSum += weight;
+        valueSum += weight * valueArray[pointId];
+        validCount++;
+    }
+    if (validCount == 0 || weightSum == 0.0) return -999;
+    return (float)(valueSum / weightSum);
+}

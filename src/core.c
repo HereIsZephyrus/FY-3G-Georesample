@@ -32,8 +32,11 @@ void CalculateGridData(const GridInfo* sampleGridInfo, GeodeticGrid* geodeticGri
         geodeticGrid->latitudeArray[bandIndex][index] = coordinate.l;
         geodeticGrid->longitudeArray[bandIndex][index] = coordinate.b;
         geodeticGrid->elevationArray[bandIndex][index] = coordinate.h;
-        geodeticGrid->valueArray[bandIndex][index] = sampleGridInfo->measuredArray[heightIndex];
-        if (IsValidHeightData(coordinate.h, sampleGridInfo->evaluation, heightIndex ,sampleGridInfo->clutterFreeBottomIndex))
+        if (sampleGridInfo->measuredArray[heightIndex] > 0 && sampleGridInfo->measuredArray[heightIndex] < 1000)
+            geodeticGrid->valueArray[bandIndex][index] = sampleGridInfo->measuredArray[heightIndex];
+        else
+            geodeticGrid->valueArray[bandIndex][index] = -999; // NaN data
+        if (geodeticGrid->valueArray[bandIndex][index] > -999 && IsValidHeightData(coordinate.h, sampleGridInfo->evaluation, heightIndex ,sampleGridInfo->clutterFreeBottomIndex))
             pointBatch->points[bandIndex][index] = *CreateRStarPoint(coordinate.l, coordinate.b, coordinate.h, index, NULL, 0);  
         else
             pointBatch->points[bandIndex][index].height = -1; // to sign the invalid height data
@@ -91,6 +94,7 @@ bool CreateRStarForest(const RStarPointBatch* pointBatch, ClipGridResult* finalG
 }
 
 bool InterpolateClipGrid(RStarIndex* indexTree, const float* valueArray, ClipGrid* clipGrid){
+    if (!indexTree) return false;
     for (unsigned int b = 0; b < clipGrid->latitudeCount; b++)
         for (unsigned int l = 0; l < clipGrid->longitudeCount; l++)
             for (unsigned int h = 0; h < clipGrid->heightCount; h++){
@@ -104,24 +108,20 @@ bool InterpolateClipGrid(RStarIndex* indexTree, const float* valueArray, ClipGri
                     fprintf(stderr, "Failed to query nearest neighbor for clip grid %d, %d, %d\n", b, l, h);
                     return false;
                 }
-                double sum = 0;
-                for (unsigned int i = 0; i < result->count; i++)
-                    sum += valueArray[result->ids[i]];
-                clipGrid->value[index] = sum / result->count;
+                // Use IDW interpolation with power = 2.0
+                clipGrid->value[index] = InterpolateValueIDW(queryPoint, result, valueArray, 2.0f);
+                printf("The %u line, %u angle, %u height's value is %f\n", b, l, h, clipGrid->value[index]);
+                DestroySpatialQueryResult(result);
             }
     return true;
 }
 
-bool InterpolateGrid(const HDFDataset* dataset, const GeodeticGrid* processedGrid, RStarForest* forest, ClipGridResult* finalGrid){
-    if (!InitClipGridArray(dataset, DEFAULT_GRID_SIZE, DEFAULT_MINIMAL_HEIGHT, DEFAULT_HEIGHT_GAP, DEFAULT_HEIGHT_COUNT, finalGrid)){
-        fprintf(stderr, "Failed to initialize final grid\n");
-        return false;
-    }
+bool InterpolateGrid(const GeodeticGrid* processedGrid, RStarForest* forest, ClipGridResult* finalGrid){
     bool success = true;
     //unsigned int clipCount = finalGrid->clipCount;
     const unsigned int clipCount = 1; // for test
     for (unsigned int bandIndex = 0; bandIndex < 2; bandIndex++)
-        #pragma omp parallel for shared(forest, processedGrid, finalGrid, bandIndex, clipCount) reduction(||:success)
+        //#pragma omp parallel for shared(forest, processedGrid, finalGrid, bandIndex, clipCount) reduction(||:success)
         for (unsigned int clipIndex = 0; clipIndex < clipCount; clipIndex++){
             if (!InterpolateClipGrid(forest->index[bandIndex][clipIndex], processedGrid->valueArray[bandIndex], &finalGrid->clipGrids[bandIndex][clipIndex])){
                 fprintf(stderr, "Failed to interpolate clip grid for band %d, clip %d\n", bandIndex, clipIndex);
