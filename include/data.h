@@ -2,7 +2,7 @@
 #define DATA_H
 #define SCAN_ANGLE_COUNT 59
 #define SCAN_HEIGHT_COUNT 500
-#define MAX_LONGITUDE_WIDTH 6 // 6 degrees
+#define MAX_LONGITUDE_WIDTH 5 // 5 degrees
 #define GEOLOCATION_GROUP_NAME "Geolocation"
 #define PRE_GROUP_NAME "PRE"
 #include <stdlib.h>
@@ -39,6 +39,7 @@ typedef struct {
 
 typedef struct {
     unsigned int latitudeCount, longitudeCount, heightCount;
+    unsigned int leftLineIndex, rightLineIndex;
     float maxLatitude, minLatitude, maxLongitude, minLongitude, minHeight;
     float latitudeGap, longitudeGap, heightGap;
     float *value; // [latitudeCount][longitudeCount][heightCount]

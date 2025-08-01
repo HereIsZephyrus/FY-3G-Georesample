@@ -71,12 +71,15 @@ typedef struct {
     IndexPropertyH properties;
     bool isValid;
     unsigned int capacity; // must greater than 32
+    unsigned int totalPointCount;
     double fillFactor;
 } RStarIndex;
 
 typedef struct {
-    RStarIndex* index[2];
-} RStarTree;
+    RStarIndex** index[2]; // [bandIndex][clipCount]
+    unsigned int forestSize;
+    unsigned int *treeSize;
+} RStarForest;
 
 typedef struct {
     float latitude, longitude, height;
@@ -108,7 +111,7 @@ bool RStarIndex_DeletePoint(RStarIndex* index, const RStarPoint* point);
 bool RStarIndex_DeleteBoundingBox(RStarIndex* index, int64_t id, const BoundingBox* bbox);
 
 SpatialQueryResult* RStarIndex_IntersectionQuery(RStarIndex* index, const BoundingBox* queryBox);
-SpatialQueryResult* RStarIndex_NearestNeighborQuery(RStarIndex* index, const double queryPoint[3], unsigned int k);
+SpatialQueryResult* RStarIndex_NearestNeighborQuery(RStarIndex* index, double queryPoint[3], unsigned int k);
 unsigned int RStarIndex_IntersectionCount(RStarIndex* index, const BoundingBox* queryBox);
 
 bool RStarIndex_GetBounds(RStarIndex* index, BoundingBox* bounds);
@@ -126,7 +129,6 @@ void DestroySpatialQueryResult(SpatialQueryResult* result);
 bool BoundingBox_Intersects(const BoundingBox* box1, const BoundingBox* box2);
 bool BoundingBox_Contains(const BoundingBox* container, const BoundingBox* contained);
 bool BoundingBox_ContainsPoint(const BoundingBox* box, const RStarPoint* point);
-float RStarPoint_Distance(const RStarPoint* p1, const RStarPoint* p2);
 void BoundingBox_Expand(BoundingBox* box, const RStarPoint* point);
 
 typedef struct {
@@ -145,11 +147,11 @@ typedef struct {
 RStarPointBatch* CreateRStarPointBatch(unsigned int initialCapacity);
 void DestroyRStarPointBatch(RStarPointBatch* batch);
 
-RStarIndex* CreateRStarIndexFromBatch(const RStarPointBatch* batch, const unsigned int bandIndex, const BulkLoadConfig* config);
-BulkLoadConfig* CreateDefaultBulkLoadConfig(unsigned int expectedDataSize);
+RStarIndex* CreateRStarIndexFromBatch(const RStarPointBatch* batch, const unsigned int startIndex, const unsigned int endIndex, const unsigned int bandIndex, const BulkLoadConfig* config);
+BulkLoadConfig* CreateDefaultBulkLoadConfig();
 void DestroyBulkLoadConfig(BulkLoadConfig* config);
 
 RStarIndex* CreateRStarIndexFromSortedBatch(RStarPointBatch* batch, const unsigned int bandIndex, const BulkLoadConfig* config);
 void RStarPointBatch_SortSpatially(RStarPointBatch* batch, const unsigned int bandIndex);
-void DestroyRStarTree(RStarTree* tree);
+void DestroyRStarForest(RStarForest* forest);
 #endif

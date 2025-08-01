@@ -432,7 +432,7 @@ SpatialQueryResult* RStarIndex_IntersectionQuery(RStarIndex* index, const Boundi
     return queryResult;
 }
 
-SpatialQueryResult* RStarIndex_NearestNeighborQuery(RStarIndex* index, const double queryPoint[3], unsigned int k) {
+SpatialQueryResult* RStarIndex_NearestNeighborQuery(RStarIndex* index, double queryPoint[3], unsigned int k) {
     if (!index || !queryPoint || !IsRStarIndexValid(index) || k == 0)
         return NULL;
 
@@ -608,15 +608,6 @@ bool BoundingBox_ContainsPoint(const BoundingBox* box, const RStarPoint* point) 
             point->height >= box->minHeight && point->height <= box->maxHeight);
 }
 
-float RStarPoint_Distance(const RStarPoint* p1, const RStarPoint* p2) {
-    if (!p1 || !p2) return -1.0;
-
-    double dx = p1->latitude - p2->latitude;
-    double dy = p1->longitude - p2->longitude;
-    double dz = p1->height - p2->height;
-    return sqrt(dx*dx + dy*dy + dz*dz);
-}
-
 void BoundingBox_Expand(BoundingBox* box, const RStarPoint* point) {
     if (!box || !point) return;
 
@@ -652,17 +643,17 @@ void DestroyRStarPointBatch(RStarPointBatch* batch) {
     free(batch);
 }
 
-BulkLoadConfig* CreateDefaultBulkLoadConfig(unsigned int expectedDataSize) {
+BulkLoadConfig* CreateDefaultBulkLoadConfig() {
     BulkLoadConfig* config = (BulkLoadConfig*)malloc(sizeof(BulkLoadConfig));
     if (!config) {
         fprintf(stderr, "Failed to allocate memory for BulkLoadConfig\n");
         return NULL;
     }
-    config->nodeCapacity = 500;
-    config->fillFactor = 0.9;
+    config->nodeCapacity = 200;
+    config->fillFactor = 0.7;
     config->pageSize = 20000;
     config->numberOfPages = 200;
-    config->enableParallelSort = expectedDataSize > 50000;
+    config->enableParallelSort = true;
     return config;
 }
 
@@ -686,58 +677,56 @@ void RStarPointBatch_SortSpatially(RStarPointBatch* batch, const unsigned int ba
     }
 }
 
-RStarIndex* CreateRStarIndexFromBatch(const RStarPointBatch* batch, const unsigned int bandIndex, const BulkLoadConfig* config) {
+RStarIndex* CreateRStarIndexFromBatch(const RStarPointBatch* batch, const unsigned int startIndex, const unsigned int endIndex, const unsigned int bandIndex, const BulkLoadConfig* config) {
     if (!batch || !config || batch->capacity == 0) {
         fprintf(stderr, "Invalid batch or config for bulk loading\n");
         return NULL;
     }
 
-    IndexPropertyH properties = IndexProperty_Create();
-    if (!properties) {
+    RStarIndex* index = (RStarIndex*)malloc(sizeof(RStarIndex));
+    if (!index) {
+        fprintf(stderr, "Failed to allocate memory for RStarIndex wrapper\n");
+        return NULL;
+    }
+
+    index->properties = IndexProperty_Create();
+    if (!index->properties) {
         fprintf(stderr, "Failed to create index properties for bulk loading\n");
         return NULL;
     }
 
-    IndexProperty_SetIndexType(properties, RT_RTree);
-    IndexProperty_SetIndexVariant(properties, RT_Star);
-    IndexProperty_SetDimension(properties, 3);
-    IndexProperty_SetIndexStorage(properties, RT_Memory);
-    IndexProperty_SetIndexCapacity(properties, config->nodeCapacity);
-    IndexProperty_SetLeafCapacity(properties, config->nodeCapacity);
-    IndexProperty_SetFillFactor(properties, config->fillFactor);
+    IndexProperty_SetIndexType(index->properties, RT_RTree);
+    IndexProperty_SetIndexVariant(index->properties, RT_Star);
+    IndexProperty_SetDimension(index->properties, 3);
+    IndexProperty_SetIndexStorage(index->properties, RT_Memory);
+    IndexProperty_SetIndexCapacity(index->properties, config->nodeCapacity);
+    IndexProperty_SetLeafCapacity(index->properties, config->nodeCapacity);
+    IndexProperty_SetFillFactor(index->properties, config->fillFactor);
 
-    IndexH spatialIndex = Index_Create(properties);
+    index->spatialIndex = Index_Create(index->properties);
     
-    if (!spatialIndex) {
+    if (!index->spatialIndex) {
         fprintf(stderr, "Failed to create spatial index\n");
-        IndexProperty_Destroy(properties);
+        IndexProperty_Destroy(index->properties);
         return NULL;
     }
 
-    for (unsigned int i = 0; i < batch->capacity; i++) {
+    unsigned int validPointCount = 0;
+    for (unsigned int i = startIndex; i < endIndex; i++) {
         RStarPoint* point = &batch->points[bandIndex][i];
-        double min[3] = {point->latitude, point->longitude, point->height};
-        double max[3] = {point->latitude, point->longitude, point->height};
-        
-        RTError result = Index_InsertData(spatialIndex, point->id, min, max, 3, 
+        if (point->height == -1) continue; // invalid point(see core.c)
+        ++validPointCount;
+        double location[3] = {point->latitude, point->longitude, point->height};
+        RTError result = Index_InsertData(index->spatialIndex, point->id, location, location, 3, 
                                          (const uint8_t*)point->userData, point->userDataSize);
         if (result != RT_None) 
             fprintf(stderr, "Failed to insert point %u during bulk loading\n", i);
     }
 
-    RStarIndex* index = (RStarIndex*)malloc(sizeof(RStarIndex));
-    if (!index) {
-        fprintf(stderr, "Failed to allocate memory for RStarIndex wrapper\n");
-        Index_Destroy(spatialIndex);
-        IndexProperty_Destroy(properties);
-        return NULL;
-    }
-
-    index->spatialIndex = spatialIndex;
-    index->properties = properties;
-    index->isValid = Index_IsValid(spatialIndex) != 0;
+    index->isValid = Index_IsValid(index->spatialIndex) != 0;
     index->capacity = config->nodeCapacity;
     index->fillFactor = config->fillFactor;
+    index->totalPointCount = validPointCount;
     return index;
 }
 
@@ -745,17 +734,20 @@ RStarIndex* CreateRStarIndexFromSortedBatch(RStarPointBatch* batch, const unsign
     if (!batch || !config || batch->capacity == 0)
         return NULL;
     RStarPointBatch_SortSpatially(batch, bandIndex);
-    return CreateRStarIndexFromBatch(batch, bandIndex, config);
+    return CreateRStarIndexFromBatch(batch, 0, batch->capacity, bandIndex, config);
 }
 
-void DestroyRStarTree(RStarTree* tree){
-    if (!tree) return;
+void DestroyRStarForest(RStarForest* forest){
+    if (!forest) return;
     for (unsigned int bandIndex = 0; bandIndex < 2; bandIndex++){
-        if (tree->index[bandIndex]){
-            Index_Destroy(tree->index[bandIndex]->spatialIndex);
-            IndexProperty_Destroy(tree->index[bandIndex]->properties);
-            free(tree->index[bandIndex]);
+        for (unsigned int treeIndex = 0; treeIndex < forest->forestSize; treeIndex++){
+            if (forest->index[bandIndex][treeIndex]){
+                Index_Destroy(forest->index[bandIndex][treeIndex]->spatialIndex);
+                IndexProperty_Destroy(forest->index[bandIndex][treeIndex]->properties);
+                free(forest->index[bandIndex][treeIndex]);
+            }
         }
+        free(forest->index[bandIndex]);
     }
-    free(tree);
+    free(forest);
 }

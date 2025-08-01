@@ -4,6 +4,14 @@
 #include "geotransfer.h"
 #include "index.h"
 
+bool IsValidHeightData(const float coordinateHeight, const float elevation, const unsigned int heightIndex, const float clutterFreeBottomIndex){
+    static const float DEFAULT_MAXIMAL_HEIGHT = (DEFAULT_MINIMAL_HEIGHT + DEFAULT_HEIGHT_COUNT * DEFAULT_HEIGHT_GAP);
+    if (heightIndex >= clutterFreeBottomIndex) return false;
+    if (coordinateHeight > DEFAULT_MAXIMAL_HEIGHT) return false;
+    if (coordinateHeight < elevation) return false;
+    return true;
+}
+
 void CalculateGridData(const GridInfo* sampleGridInfo, GeodeticGrid* geodeticGrid, RStarPointBatch* pointBatch, unsigned int bandIndex, unsigned int lineIndex, unsigned int angleIndex){
     /**
     @brief Calculate the interpolation
@@ -25,10 +33,10 @@ void CalculateGridData(const GridInfo* sampleGridInfo, GeodeticGrid* geodeticGri
         geodeticGrid->longitudeArray[bandIndex][index] = coordinate.b;
         geodeticGrid->elevationArray[bandIndex][index] = coordinate.h;
         geodeticGrid->valueArray[bandIndex][index] = sampleGridInfo->measuredArray[heightIndex];
-        if (index >= pointBatch->capacity)
-            fprintf(stderr, "Point batch capacity is not enough\n");
-        else
+        if (IsValidHeightData(coordinate.h, sampleGridInfo->evaluation, heightIndex ,sampleGridInfo->clutterFreeBottomIndex))
             pointBatch->points[bandIndex][index] = *CreateRStarPoint(coordinate.l, coordinate.b, coordinate.h, index, NULL, 0);  
+        else
+            pointBatch->points[bandIndex][index].height = -1; // to sign the invalid height data
     }
 }
 
@@ -55,17 +63,30 @@ bool ProcessDataset(const HDFDataset* dataset, GeodeticGrid* geodeticGrid, RStar
     return true;
 }
 
-bool CreateRStarTree(RStarPointBatch* pointBatch, RStarTree* tree){
+bool CreateRStarForest(const RStarPointBatch* pointBatch, ClipGridResult* finalGrid, RStarForest* forest){
     bool success = true;
-    BulkLoadConfig* config = CreateDefaultBulkLoadConfig(pointBatch->capacity);
+    //const unsigned int clipCount = finalGrid->clipCount;
+    const unsigned int clipCount = 1; // for test
+    forest->forestSize = clipCount;
     for (unsigned int bandIndex = 0; bandIndex < 2; bandIndex++){
-        tree->index[bandIndex] = CreateRStarIndexFromSortedBatch(pointBatch, bandIndex, config);
-        if (!tree->index[bandIndex]){
-            fprintf(stderr, "Failed to create RStar index for band %d\n", bandIndex);
+        forest->index[bandIndex] = (RStarIndex**)malloc(clipCount * sizeof(RStarIndex*));
+        if (!forest->index[bandIndex]){
+            fprintf(stderr, "Failed to allocate memory for RStar index for band %d\n", bandIndex);
             success = false;
         }
+        BulkLoadConfig* config = CreateDefaultBulkLoadConfig();
+        //#pragma omp parallel for shared(pointBatch, finalGrid, bandIndex, clipCount, config) reduction(||:success)
+        for (unsigned int clipIndex = 0; clipIndex < clipCount; clipIndex++){
+            const unsigned int startIndex = finalGrid->clipGrids[bandIndex][clipIndex].leftLineIndex * SCAN_ANGLE_COUNT * SCAN_HEIGHT_COUNT;
+            const unsigned int endIndex = (finalGrid->clipGrids[bandIndex][clipIndex].rightLineIndex + 1) * SCAN_ANGLE_COUNT * SCAN_HEIGHT_COUNT;
+            forest->index[bandIndex][clipIndex] = CreateRStarIndexFromBatch(pointBatch, startIndex, endIndex, bandIndex, config);
+            if (!forest->index[bandIndex][clipIndex]){
+                fprintf(stderr, "Failed to create RStar index for band %d, clip %d\n", bandIndex, clipIndex);
+                success = false;
+            }
+        }
+        DestroyBulkLoadConfig(config);
     }
-    DestroyBulkLoadConfig(config);
     return success;
 }
 
@@ -76,9 +97,9 @@ bool InterpolateClipGrid(RStarIndex* indexTree, const float* valueArray, ClipGri
                 const float latitude = clipGrid->minLatitude + b * clipGrid->latitudeGap;
                 const float longitude = clipGrid->minLongitude + l * clipGrid->longitudeGap;
                 const float height = clipGrid->minHeight + h * clipGrid->heightGap;
-                const double queryPoint[3] = {latitude, longitude, height};
+                double queryPoint[3] = {latitude, longitude, height};
                 unsigned int index = b * clipGrid->longitudeCount * clipGrid->heightCount + l * clipGrid->heightCount + h;
-                SpatialQueryResult* result = RStarIndex_NearestNeighborQuery(indexTree, queryPoint, 10);
+                SpatialQueryResult* result = RStarIndex_NearestNeighborQuery(indexTree, queryPoint, 5);
                 if (!result){
                     fprintf(stderr, "Failed to query nearest neighbor for clip grid %d, %d, %d\n", b, l, h);
                     return false;
@@ -91,19 +112,28 @@ bool InterpolateClipGrid(RStarIndex* indexTree, const float* valueArray, ClipGri
     return true;
 }
 
-bool InterpolateGrid(const HDFDataset* dataset, const GeodeticGrid* processedGrid, const RStarTree* tree, ClipGridResult* finalGrid){
+bool InterpolateGrid(const HDFDataset* dataset, const GeodeticGrid* processedGrid, RStarForest* forest, ClipGridResult* finalGrid){
     if (!InitClipGridArray(dataset, DEFAULT_GRID_SIZE, DEFAULT_MINIMAL_HEIGHT, DEFAULT_HEIGHT_GAP, DEFAULT_HEIGHT_COUNT, finalGrid)){
         fprintf(stderr, "Failed to initialize final grid\n");
         return false;
     }
-    unsigned int clipCount = finalGrid->clipCount;
+    bool success = true;
+    //unsigned int clipCount = finalGrid->clipCount;
+    const unsigned int clipCount = 1; // for test
     for (unsigned int bandIndex = 0; bandIndex < 2; bandIndex++)
+        #pragma omp parallel for shared(forest, processedGrid, finalGrid, bandIndex, clipCount) reduction(||:success)
         for (unsigned int clipIndex = 0; clipIndex < clipCount; clipIndex++){
-            if (!InterpolateClipGrid(tree->index[bandIndex], processedGrid->valueArray[bandIndex], &finalGrid->clipGrids[bandIndex][clipIndex])){
+            if (!InterpolateClipGrid(forest->index[bandIndex][clipIndex], processedGrid->valueArray[bandIndex], &finalGrid->clipGrids[bandIndex][clipIndex])){
                 fprintf(stderr, "Failed to interpolate clip grid for band %d, clip %d\n", bandIndex, clipIndex);
-                return false;
+                success = false;
             }
         }
+    return success;
+}
+
+bool InitClipResult(const HDFDataset* dataset, const RStarPointBatch* pointBatch, RStarForest* forest, ClipGridResult* finalGrid){
+    InitClipGridArray(dataset, DEFAULT_GRID_SIZE, DEFAULT_MINIMAL_HEIGHT, DEFAULT_HEIGHT_GAP, DEFAULT_HEIGHT_COUNT, finalGrid);
+    CreateRStarForest(pointBatch, finalGrid, forest);
     return true;
 }
 
