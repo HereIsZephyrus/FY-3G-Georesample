@@ -20,12 +20,13 @@ typedef struct {
 CartesianInterpolator calcInterParams(  const double groundX, const double groundY, const double groundZ, const double groundH,
                                         const double latitude, const double longitude, const double zeta);
 
-Coordinate calcCartesian(const CartesianInterpolator *interpolator, const float queryHeight);
+Coordinate CalcCartesian(const CartesianInterpolator *interpolator, const float queryHeight);
 
 bool GetGeodeticRange(GridInfo** const infoArray, const int lineCount, float *maxLatitude, float *minLatitude, float *maxLongitude, float *minLongitude);
 bool InitClipGridArray(const HDFDataset* dataset, const int gridSize, const int initHeight, const int heightGap, const int heightCount, ClipGridResult* finalGrid);
 float QueryClipMaxLongitude(const unsigned int leftLineIndex, const unsigned int rightLineIndex, const float minClipLatitude, const float maxClipLatitude, GridInfo** const infoArray);
 unsigned int SearchLineIndex(const float latitude, unsigned int bias, GridInfo** const infoArray, unsigned int left, unsigned int right);
 bool QueryBoundingBox(ClipGrid* clipGrid, GridInfo** const infoArray, const unsigned int lineCount);
-double InterpolateValueIDW(double queryPoint[3], const SpatialQueryResult* result, const float* valueArray, float power);
+double InterpolateValueIDW(const double queryPoint[3], const float queryHeight, const SpatialQueryResult* result, const float* valueArray, float power);
+//double InterpolateValueIDWBatch(const double queryPoint[3], const float queryHeight, const SpatialQueryResult* result, const float* valueArray, const RStarPoint* points, float power);
 #endif

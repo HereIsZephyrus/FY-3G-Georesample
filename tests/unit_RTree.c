@@ -29,10 +29,8 @@ void test_rstar3d_basic_functionality(void) {
     bool result3 = RStarIndex_InsertPoint(index, point3);
     TEST_ASSERT_TRUE(result3);
     
-    BoundingBox* queryBox = CreateBoundingBox(0.0, 0.0, 0.0, 5.0, 5.0, 5.0);
-    TEST_ASSERT_NOT_NULL(queryBox);
-    
-    SpatialQueryResult* queryResult = RStarIndex_IntersectionQuery(index, queryBox);
+    double queryPoint[3] = {1.0, 2.0, 3.0};
+    SpatialQueryResult* queryResult = RStarIndex_NearestNeighborQuery(index, queryPoint, 2);
     TEST_ASSERT_NOT_NULL(queryResult);
     TEST_ASSERT_TRUE(queryResult->count >= 2);
     
@@ -44,81 +42,7 @@ void test_rstar3d_basic_functionality(void) {
     TEST_ASSERT_TRUE(found_id1);
     TEST_ASSERT_TRUE(found_id2);
     
-    unsigned int count = RStarIndex_IntersectionCount(index, queryBox);
-    TEST_ASSERT_EQUAL_INT(queryResult->count, count);
-    
-    BoundingBox bounds;
-    bool boundsResult = RStarIndex_GetBounds(index, &bounds);
-    TEST_ASSERT_TRUE(boundsResult);
-    TEST_ASSERT_TRUE(bounds.minLatitude <= 1.0);
-    TEST_ASSERT_TRUE(bounds.maxLatitude >= 7.0);
-    TEST_ASSERT_TRUE(bounds.minLongitude <= 2.0);
-    TEST_ASSERT_TRUE(bounds.maxLongitude >= 8.0);
-    TEST_ASSERT_TRUE(bounds.minHeight <= 3.0);
-    TEST_ASSERT_TRUE(bounds.maxHeight >= 9.0);
-    
-    DestroySpatialQueryResult(queryResult);
-    DestroyBoundingBox(queryBox);
-    DestroyRStarPoint(point1);
-    DestroyRStarPoint(point2);
-    DestroyRStarPoint(point3);
-    DestroyRStarIndex(index);
-    
     TEST_MESSAGE("RStar3D basic functionality test completed");
-}
-
-void test_rstar3d_bounding_box_operations(void) {
-    TEST_MESSAGE("Start RStar3D bounding box operations test");
-    
-    RStarIndex* index = CreateRStarIndex(50, 0.7);
-    TEST_ASSERT_NOT_NULL(index);
-    
-    BoundingBox* bbox1 = CreateBoundingBox(0.0, 0.0, 0.0, 2.0, 2.0, 2.0);
-    TEST_ASSERT_NOT_NULL(bbox1);
-    const char* data1 = "边界框1";
-    bool result1 = RStarIndex_InsertBoundingBox(index, 100, bbox1, data1, strlen(data1) + 1);
-    TEST_ASSERT_TRUE(result1);
-    
-    BoundingBox* bbox2 = CreateBoundingBox(5.0, 5.0, 5.0, 7.0, 7.0, 7.0);
-    TEST_ASSERT_NOT_NULL(bbox2);
-    const char* data2 = "边界框2";
-    bool result2 = RStarIndex_InsertBoundingBox(index, 101, bbox2, data2, strlen(data2) + 1);
-    TEST_ASSERT_TRUE(result2);
-    
-    BoundingBox* queryBox = CreateBoundingBox(1.0, 1.0, 1.0, 3.0, 3.0, 3.0);
-    TEST_ASSERT_NOT_NULL(queryBox);
-    
-    SpatialQueryResult* queryResult = RStarIndex_IntersectionQuery(index, queryBox);
-    TEST_ASSERT_NOT_NULL(queryResult);
-    TEST_ASSERT_TRUE(queryResult->count >= 1);
-    
-    bool found_bbox1 = false;
-    for (unsigned int i = 0; i < queryResult->count; i++) {
-        if (queryResult->ids[i] == 100) found_bbox1 = true;
-    }
-    TEST_ASSERT_TRUE(found_bbox1);
-    
-    bool deleteResult = RStarIndex_DeleteBoundingBox(index, 100, bbox1);
-    TEST_ASSERT_TRUE(deleteResult);
-    
-    DestroySpatialQueryResult(queryResult);
-    queryResult = RStarIndex_IntersectionQuery(index, queryBox);
-    
-    bool found_bbox1_after_delete = false;
-    if (queryResult) {
-        for (unsigned int i = 0; i < queryResult->count; i++) {
-            if (queryResult->ids[i] == 100) found_bbox1_after_delete = true;
-        }
-    }
-    TEST_ASSERT_FALSE(found_bbox1_after_delete);
-    
-    if (queryResult) DestroySpatialQueryResult(queryResult);
-    DestroyBoundingBox(queryBox);
-    DestroyBoundingBox(bbox1);
-    DestroyBoundingBox(bbox2);
-    DestroyRStarIndex(index);
-    
-    TEST_MESSAGE("RStar3D bounding box operations test completed");
 }
 
 void test_rstar3d_nearest_neighbor(void) {
@@ -188,23 +112,14 @@ void test_rstar3d_large_scale_insertion(void) {
         TEST_ASSERT_TRUE(result);
     }
     
-    BoundingBox bounds;
-    bool boundsResult = RStarIndex_GetBounds(index, &bounds);
-    TEST_ASSERT_TRUE(boundsResult);
-    TEST_ASSERT_TRUE(bounds.minLatitude >= 0.0);
-    TEST_ASSERT_TRUE(bounds.maxLatitude <= 100.0);
-    TEST_ASSERT_TRUE(bounds.minLongitude >= 0.0);
-    TEST_ASSERT_TRUE(bounds.maxLongitude <= 100.0);
-    
-    BoundingBox* queryBox = CreateBoundingBox(25.0, 25.0, 10.0, 75.0, 75.0, 40.0);
-    SpatialQueryResult* queryResult = RStarIndex_IntersectionQuery(index, queryBox);
+    double queryPoint[3] = {25.0, 25.0, 10.0};
+    SpatialQueryResult* queryResult = RStarIndex_NearestNeighborQuery(index, queryPoint, 1000);
     TEST_ASSERT_NOT_NULL(queryResult);
     
     TEST_ASSERT_TRUE(queryResult->count > 0);
     TEST_ASSERT_TRUE(queryResult->count < NUM_POINTS);
     
     DestroySpatialQueryResult(queryResult);
-    DestroyBoundingBox(queryBox);
     for (int i = 0; i < NUM_POINTS; i++) {
         DestroyRStarPoint(points[i]);
     }
@@ -241,13 +156,13 @@ void test_rstar3d_complex_spatial_queries(void) {
         }
     }
     
-    BoundingBox* smallQuery = CreateBoundingBox(18.0, 18.0, 8.0, 22.0, 22.0, 12.0);
-    BoundingBox* mediumQuery = CreateBoundingBox(15.0, 15.0, 5.0, 45.0, 45.0, 20.0);
-    BoundingBox* largeQuery = CreateBoundingBox(0.0, 0.0, 0.0, 100.0, 100.0, 50.0);
+    double smallQuery[3] = {18.0, 18.0, 8.0};
+    double mediumQuery[3] = {15.0, 15.0, 5.0};
+    double largeQuery[3] = {0.0, 0.0, 0.0};
     
-    SpatialQueryResult* smallResult = RStarIndex_IntersectionQuery(index, smallQuery);
-    SpatialQueryResult* mediumResult = RStarIndex_IntersectionQuery(index, mediumQuery);
-    SpatialQueryResult* largeResult = RStarIndex_IntersectionQuery(index, largeQuery);
+    SpatialQueryResult* smallResult = RStarIndex_NearestNeighborQuery(index, smallQuery, 1000);
+    SpatialQueryResult* mediumResult = RStarIndex_NearestNeighborQuery(index, mediumQuery, 1000);
+    SpatialQueryResult* largeResult = RStarIndex_NearestNeighborQuery(index, largeQuery, 1000);
     
     TEST_ASSERT_NOT_NULL(smallResult);
     TEST_ASSERT_NOT_NULL(mediumResult);
@@ -256,9 +171,9 @@ void test_rstar3d_complex_spatial_queries(void) {
     TEST_ASSERT_TRUE(mediumResult->count <= largeResult->count);
     
     // check count of query result
-    unsigned int smallCount = RStarIndex_IntersectionCount(index, smallQuery);
-    unsigned int mediumCount = RStarIndex_IntersectionCount(index, mediumQuery);
-    unsigned int largeCount = RStarIndex_IntersectionCount(index, largeQuery);
+    unsigned int smallCount = RStarIndex_NearestNeighborQuery(index, smallQuery, 1000)->count;
+    unsigned int mediumCount = RStarIndex_NearestNeighborQuery(index, mediumQuery, 1000)->count;
+    unsigned int largeCount = RStarIndex_NearestNeighborQuery(index, largeQuery, 1000)->count;
     
     TEST_ASSERT_EQUAL_INT(smallResult->count, smallCount);
     TEST_ASSERT_EQUAL_INT(mediumResult->count, mediumCount);
@@ -267,9 +182,6 @@ void test_rstar3d_complex_spatial_queries(void) {
     DestroySpatialQueryResult(smallResult);
     DestroySpatialQueryResult(mediumResult);
     DestroySpatialQueryResult(largeResult);
-    DestroyBoundingBox(smallQuery);
-    DestroyBoundingBox(mediumQuery);
-    DestroyBoundingBox(largeQuery);
     
     for (int i = 0; i < CLUSTERS * POINTS_PER_CLUSTER; i++) {
         DestroyRStarPoint(points[i]);
@@ -288,15 +200,13 @@ void test_rstar3d_mixed_operations_stress(void) {
     
     const int OPERATIONS = 5000;
     RStarPoint** points = (RStarPoint**)malloc(OPERATIONS * sizeof(RStarPoint*));
-    BoundingBox** bboxes = (BoundingBox**)malloc(OPERATIONS * sizeof(BoundingBox*));
     
     int insertedPoints = 0;
-    int insertedBboxes = 0;
     
     for (int op = 0; op < OPERATIONS; op++) {
         int operation = rand() % 100;
         
-        if (operation < 40) {  // 40% insert at random position
+        if (operation < 70) {  // 70% insert at random position
             float lat = (float)(rand() % 2000) / 20.0f;
             float lon = (float)(rand() % 2000) / 20.0f;
             float height = (float)(rand() % 1000) / 20.0f;
@@ -306,34 +216,17 @@ void test_rstar3d_mixed_operations_stress(void) {
             TEST_ASSERT_TRUE(result);
             insertedPoints++;
             
-        } else if (operation < 70 && insertedBboxes < OPERATIONS) {  // 30% insert bounding box
-            float minLat = (float)(rand() % 1800) / 20.0f;
-            float minLon = (float)(rand() % 1800) / 20.0f;
-            float minHeight = (float)(rand() % 900) / 20.0f;
-            float maxLat = minLat + (float)(rand() % 200) / 20.0f;
-            float maxLon = minLon + (float)(rand() % 200) / 20.0f;
-            float maxHeight = minHeight + (float)(rand() % 100) / 20.0f;
-            
-            bboxes[insertedBboxes] = CreateBoundingBox(minLat, minLon, minHeight, maxLat, maxLon, maxHeight);
-            bool result = RStarIndex_InsertBoundingBox(index, insertedBboxes + 10000, bboxes[insertedBboxes], NULL, 0);
-            TEST_ASSERT_TRUE(result);
-            insertedBboxes++;
-            
         } else if (operation < 90) {  // 20% query
             float queryLat = (float)(rand() % 1000) / 10.0f;
             float queryLon = (float)(rand() % 1000) / 10.0f;
             float queryHeight = (float)(rand() % 500) / 10.0f;
-            float querySize = (float)(rand() % 200) / 10.0f;
             
-            BoundingBox* queryBox = CreateBoundingBox(queryLat, queryLon, queryHeight,
-                                                    queryLat + querySize, queryLon + querySize, queryHeight + querySize/2);
-            
-            SpatialQueryResult* result = RStarIndex_IntersectionQuery(index, queryBox);
+            double queryPoint[3] = {queryLat, queryLon, queryHeight};
+            SpatialQueryResult* result = RStarIndex_NearestNeighborQuery(index, queryPoint, 1000);
             if (result) {
                 TEST_ASSERT_TRUE(result->count >= 0);
                 DestroySpatialQueryResult(result);
             }
-            DestroyBoundingBox(queryBox);
             
         } else {  // 10% delete
             if (insertedPoints > 0 && rand() % 2 == 0) {
@@ -342,13 +235,6 @@ void test_rstar3d_mixed_operations_stress(void) {
                     RStarIndex_DeletePoint(index, points[deleteIdx]);
                     DestroyRStarPoint(points[deleteIdx]);
                     points[deleteIdx] = NULL;
-                }
-            } else if (insertedBboxes > 0) {
-                int deleteIdx = rand() % insertedBboxes;
-                if (bboxes[deleteIdx] != NULL) {
-                    RStarIndex_DeleteBoundingBox(index, deleteIdx + 10000, bboxes[deleteIdx]);
-                    DestroyBoundingBox(bboxes[deleteIdx]);
-                    bboxes[deleteIdx] = NULL;
                 }
             }
         }
@@ -361,13 +247,7 @@ void test_rstar3d_mixed_operations_stress(void) {
             DestroyRStarPoint(points[i]);
         }
     }
-    for (int i = 0; i < insertedBboxes; i++) {
-        if (bboxes[i] != NULL) {
-            DestroyBoundingBox(bboxes[i]);
-        }
-    }
     free(points);
-    free(bboxes);
     DestroyRStarIndex(index);
     
     TEST_MESSAGE("RStar3D mixed operations stress test completed");
@@ -436,27 +316,24 @@ void test_rstar3d_boundary_conditions(void) {
     RStarPoint* duplicatePoint = CreateRStarPoint(0.0, 0.0, 0.0, 4, NULL, 0);
     TEST_ASSERT_TRUE(RStarIndex_InsertPoint(index, duplicatePoint));
     
-    BoundingBox* emptyQuery = CreateBoundingBox(500.0, 500.0, 500.0, 500.0, 500.0, 500.0);
-    SpatialQueryResult* emptyResult = RStarIndex_IntersectionQuery(index, emptyQuery);
+    double emptyQuery[3] = {500.0, 500.0, 500.0};
+    SpatialQueryResult* emptyResult = RStarIndex_NearestNeighborQuery(index, emptyQuery, 1000);
     if (emptyResult) {
         DestroySpatialQueryResult(emptyResult);
     }
     
-    BoundingBox* hugeQuery = CreateBoundingBox(-2000.0, -2000.0, -2000.0, 2000.0, 2000.0, 2000.0);
-    SpatialQueryResult* hugeResult = RStarIndex_IntersectionQuery(index, hugeQuery);
+    double hugeQuery[3] = {-2000.0, -2000.0, -2000.0};
+    SpatialQueryResult* hugeResult = RStarIndex_NearestNeighborQuery(index, hugeQuery, 1000);
     TEST_ASSERT_NOT_NULL(hugeResult);
     TEST_ASSERT_EQUAL_INT(4, hugeResult->count);
     
-    BoundingBox* invalidQuery = CreateBoundingBox(10.0, 10.0, 10.0, 5.0, 5.0, 5.0);
-    SpatialQueryResult* invalidResult = RStarIndex_IntersectionQuery(index, invalidQuery);
+    double invalidQuery[3] = {10.0, 10.0, 10.0};
+    SpatialQueryResult* invalidResult = RStarIndex_NearestNeighborQuery(index, invalidQuery, 1000);
     if (invalidResult) {
         DestroySpatialQueryResult(invalidResult);
     }
     
     DestroySpatialQueryResult(hugeResult);
-    DestroyBoundingBox(emptyQuery);
-    DestroyBoundingBox(hugeQuery);
-    DestroyBoundingBox(invalidQuery);
     DestroyRStarPoint(minPoint);
     DestroyRStarPoint(maxPoint);
     DestroyRStarPoint(zeroPoint);
@@ -469,7 +346,6 @@ void test_rstar3d_boundary_conditions(void) {
 void test_rstar3d(void) {
     TEST_MESSAGE("Start RStar3D test");
     RUN_TEST(test_rstar3d_basic_functionality);
-    RUN_TEST(test_rstar3d_bounding_box_operations);
     RUN_TEST(test_rstar3d_nearest_neighbor);
     RUN_TEST(test_rstar3d_large_scale_insertion);
     RUN_TEST(test_rstar3d_complex_spatial_queries);

@@ -56,7 +56,7 @@ CartesianInterpolator calcInterParams(  const double groundX, const double groun
     return interpolator;
 }
 
-Coordinate calcCartesian(const CartesianInterpolator *interpolator, const float queryHeight){
+Coordinate CalcCartesian(const CartesianInterpolator *interpolator, const float queryHeight){
     /**
      * @brief Calculate the Cartesian coordinate
      * @param interpolator: the interpolator
@@ -157,7 +157,7 @@ bool InitClipGridArray(const HDFDataset* dataset, int gridSize, int initHeight, 
             clipGrid->heightCount = heightCount;
             clipGrid->minLatitude = globalMinLatitude + clipIndex * realClipLatitudeGap;
             clipGrid->maxLatitude = clipGrid->minLatitude + realClipLatitudeGap;
-            clipGrid->latitudeGap = realClipLatitudeGap;
+            clipGrid->latitudeGap = latitudeGap;
             clipGrid->latitudeCount = realClipLatitudeCount;
             clipGrid->minLongitude = minClipLongitude;
             const float centerClipLatitude = (clipGrid->minLatitude + clipGrid->maxLatitude) / 2;
@@ -171,7 +171,7 @@ bool InitClipGridArray(const HDFDataset* dataset, int gridSize, int initHeight, 
     return true;
 }
 
-double InterpolateValueIDW(double queryPoint[3], const SpatialQueryResult* result, const float* valueArray, float power) {
+double InterpolateValueIDW(const double queryPoint[3], const float queryHeight, const SpatialQueryResult* result, const float* valueArray, float power) {
     /**
      * @brief Calculate IDW (Inverse Distance Weighting) interpolated value
      * @param queryPoint: the query point coordinates [latitude, longitude, height]
@@ -187,8 +187,6 @@ double InterpolateValueIDW(double queryPoint[3], const SpatialQueryResult* resul
     double weightSum = 0.0;
     double valueSum = 0.0;
     unsigned int validCount = 0;
-    double qx, qy, qz;
-    TransferGeodeticToCartesian(queryPoint[0], queryPoint[1], queryPoint[2], &qx, &qy, &qz);
     
     for (unsigned int i = 0; i < result->count; i++) {
         int64_t pointId = result->ids[i];
@@ -197,14 +195,10 @@ double InterpolateValueIDW(double queryPoint[3], const SpatialQueryResult* resul
             continue;
         }
         RStarPoint* point = &result->points[i];
-        if (fabs(point->latitude - queryPoint[0]) > 1 || fabs(point->longitude - queryPoint[1]) > 1)
-            continue; //too far away
-        if (point->height == -1) continue; // skip invalid points
-        double px, py, pz;
-        TransferGeodeticToCartesian(point->latitude, point->longitude, point->height, &px, &py, &pz);
-        double distance = sqrt((qx - px) * (qx - px) + (qy - py) * (qy - py) + (queryPoint[2] - point->height) * (queryPoint[2] - point->height)) / 1e5;
-        if (distance > 5 * DEFAULT_GRID_SIZE) continue; // skip points too far away
-        if (distance < 0.5 * DEFAULT_GRID_SIZE) return valueArray[pointId]; // return exact value
+        if (point->h == -1 || fabs(point->h - queryHeight) > DEFAULT_HEIGHT_GAP * 2) continue; // skip invalid height points
+        double distance = sqrt((queryPoint[0] - point->x) * (queryPoint[0] - point->x) + (queryPoint[1] - point->y) * (queryPoint[1] - point->y) + (queryPoint[2] - point->z) * (queryPoint[2] - point->z));
+        if (distance > 2 * DEFAULT_GRID_SIZE) continue; // skip points too far away
+        if (distance < 100) return valueArray[pointId]; // return exact value
         double weight = 1.0 / pow(distance, power);
         weightSum += weight;
         valueSum += weight * valueArray[pointId];

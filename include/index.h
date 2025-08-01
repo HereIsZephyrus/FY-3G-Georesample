@@ -1,6 +1,6 @@
 #ifndef INDEX_H
 #define INDEX_H
-
+#define DEFAULT_K_NEIGHBOR 5
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -82,16 +82,11 @@ typedef struct {
 } RStarForest;
 
 typedef struct {
-    float latitude, longitude, height;
+    float x, y, z, h;
     int64_t id;
     void* userData;
     size_t userDataSize;
 } RStarPoint;
-
-typedef struct {
-    float minLatitude, minLongitude, minHeight;
-    float maxLatitude, maxLongitude, maxHeight;
-} BoundingBox;
 
 typedef struct {
     int64_t* ids;
@@ -105,32 +100,18 @@ void DestroyRStarIndex(RStarIndex* index);
 bool IsRStarIndexValid(RStarIndex* index);
 
 bool RStarIndex_InsertPoint(RStarIndex* index, const RStarPoint* point);
-bool RStarIndex_InsertBoundingBox(RStarIndex* index, int64_t id, const BoundingBox* bbox, 
-                                   const void* userData, size_t userDataSize);
 bool RStarIndex_DeletePoint(RStarIndex* index, const RStarPoint* point);
-bool RStarIndex_DeleteBoundingBox(RStarIndex* index, int64_t id, const BoundingBox* bbox);
 
-SpatialQueryResult* RStarIndex_IntersectionQuery(RStarIndex* index, const BoundingBox* queryBox);
 SpatialQueryResult* RStarIndex_NearestNeighborQuery(RStarIndex* index, double queryPoint[3], unsigned int k);
-SpatialQueryResult* NearestNeighborQuery(const RStarPoint* points, RStarIndex* index, double queryPoint[3]);
-unsigned int RStarIndex_IntersectionCount(RStarIndex* index, const BoundingBox* queryBox);
+void FillQueryPointCoordinates(const RStarPoint* points, unsigned int count, SpatialQueryResult* result);
 
-bool RStarIndex_GetBounds(RStarIndex* index, BoundingBox* bounds);
 void RStarIndex_Flush(RStarIndex* index);
 void RStarIndex_ClearBuffer(RStarIndex* index);
 
-RStarPoint* CreateRStarPoint(float latitude, float longitude, float height, int64_t id, const void* userData, size_t userDataSize);
+RStarPoint* CreateRStarPoint(float x, float y, float z, int64_t id, const void* userData, size_t userDataSize);
 void DestroyRStarPoint(RStarPoint* point);
-BoundingBox* CreateBoundingBox(float minLatitude, float minLongitude, float minHeight, 
-                                   float maxLatitude, float maxLongitude, float maxHeight);
-void DestroyBoundingBox(BoundingBox* bbox);
 SpatialQueryResult* CreateSpatialQueryResult();
 void DestroySpatialQueryResult(SpatialQueryResult* result);
-
-bool BoundingBox_Intersects(const BoundingBox* box1, const BoundingBox* box2);
-bool BoundingBox_Contains(const BoundingBox* container, const BoundingBox* contained);
-bool BoundingBox_ContainsPoint(const BoundingBox* box, const RStarPoint* point);
-void BoundingBox_Expand(BoundingBox* box, const RStarPoint* point);
 
 typedef struct {
     RStarPoint* points[2];

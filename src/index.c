@@ -9,22 +9,21 @@
 #include "index.h"
 
 #define INITIAL_CAPACITY 4
-#define DEFAULT_K_NEIGHBOR 5
 
 static int compare_points_x(const void* a, const void* b) {
     const RStarPoint* p1 = (const RStarPoint*)a;
     const RStarPoint* p2 = (const RStarPoint*)b;
     
-    if (p1->latitude < p2->latitude) return -1;
-    if (p1->latitude > p2->latitude) return 1;
+    if (p1->x < p2->x) return -1;
+    if (p1->x > p2->x) return 1;
     return 0;
 }
 static int compare_points_y(const void* a, const void* b) {
     const RStarPoint* p1 = (const RStarPoint*)a;
     const RStarPoint* p2 = (const RStarPoint*)b;
     
-    if (p1->longitude < p2->longitude) return -1;
-    if (p1->longitude > p2->longitude) return 1;
+    if (p1->y < p2->y) return -1;
+    if (p1->y > p2->y) return 1;
     return 0;
 }
 
@@ -360,21 +359,9 @@ bool IsRStarIndexValid(RStarIndex* index) {
 bool RStarIndex_InsertPoint(RStarIndex* index, const RStarPoint* point) {
     if (!index || !point || !IsRStarIndexValid(index))
         return false;
-    double min[3] = {(double)point->latitude, (double)point->longitude, (double)point->height};
-    double max[3] = {(double)point->latitude, (double)point->longitude, (double)point->height};
-    RTError result = Index_InsertData(index->spatialIndex, point->id, min, max, 3,
+    double queryPoint[3] = {(double)point->x, (double)point->y, (double)point->z};
+    RTError result = Index_InsertData(index->spatialIndex, point->id, queryPoint, queryPoint, 3,
             (const uint8_t*)point->userData, point->userDataSize);
-
-    return result == RT_None;
-}
-
-bool RStarIndex_InsertBoundingBox(RStarIndex* index, int64_t id, const BoundingBox* bbox, const void* userData, size_t userDataSize) {
-    if (!index || !bbox || !IsRStarIndexValid(index))
-        return false;
-    double min[3] = {(double)bbox->minLatitude, (double)bbox->minLongitude, (double)bbox->minHeight};
-    double max[3] = {(double)bbox->maxLatitude, (double)bbox->maxLongitude, (double)bbox->maxHeight};
-    RTError result = Index_InsertData(index->spatialIndex, id, min, max, 3,
-            (const uint8_t*)userData, userDataSize);
 
     return result == RT_None;
 }
@@ -382,55 +369,11 @@ bool RStarIndex_InsertBoundingBox(RStarIndex* index, int64_t id, const BoundingB
 bool RStarIndex_DeletePoint(RStarIndex* index, const RStarPoint* point) {
     if (!index || !point || !IsRStarIndexValid(index))
         return false;
-    double min[3] = {(double)point->latitude, (double)point->longitude, (double)point->height};
-    double max[3] = {(double)point->latitude, (double)point->longitude, (double)point->height};
+    double min[3] = {(double)point->x, (double)point->y, (double)point->z};
+    double max[3] = {(double)point->x, (double)point->y, (double)point->z};
     RTError result = Index_DeleteData(index->spatialIndex, point->id, min, max, 3);
 
     return result == RT_None;
-}
-
-bool RStarIndex_DeleteBoundingBox(RStarIndex* index, int64_t id, const BoundingBox* bbox) {
-    if (!index || !bbox || !IsRStarIndexValid(index))
-        return false;
-    double min[3] = {(double)bbox->minLatitude, (double)bbox->minLongitude, (double)bbox->minHeight};
-    double max[3] = {(double)bbox->maxLatitude, (double)bbox->maxLongitude, (double)bbox->maxHeight};
-    RTError result = Index_DeleteData(index->spatialIndex, id, min, max, 3);
-
-    return result == RT_None;
-}
-
-SpatialQueryResult* RStarIndex_IntersectionQuery(RStarIndex* index, const BoundingBox* queryBox) {
-    if (!index || !queryBox || !IsRStarIndexValid(index))
-        return NULL;
-
-    double min[3] = {(double)queryBox->minLatitude, (double)queryBox->minLongitude, (double)queryBox->minHeight};
-    double max[3] = {(double)queryBox->maxLatitude, (double)queryBox->maxLongitude, (double)queryBox->maxHeight};
-
-    int64_t* ids;
-    uint64_t nResults;
-    RTError result = Index_Intersects_id(index->spatialIndex, min, max, 3, &ids, &nResults);
-
-    if (result != RT_None || nResults == 0)
-        return NULL;
-
-    SpatialQueryResult* queryResult = CreateSpatialQueryResult();
-    if (!queryResult) {
-        Index_Free(ids);
-        return NULL;
-    }
-
-    queryResult->ids = (int64_t*)malloc(nResults * sizeof(int64_t));
-    if (!queryResult->ids) {
-        DestroySpatialQueryResult(queryResult);
-        Index_Free(ids);
-        return NULL;
-    }
-
-    memcpy(queryResult->ids, ids, nResults * sizeof(int64_t));
-    queryResult->count = (unsigned int)nResults;
-    queryResult->capacity = (unsigned int)nResults;
-    Index_Free(ids);
-    return queryResult;
 }
 
 SpatialQueryResult* RStarIndex_NearestNeighborQuery(RStarIndex* index, double queryPoint[3], unsigned int k) {
@@ -466,46 +409,6 @@ SpatialQueryResult* RStarIndex_NearestNeighborQuery(RStarIndex* index, double qu
     return queryResult;
 }
 
-unsigned int RStarIndex_IntersectionCount(RStarIndex* index, const BoundingBox* queryBox) {
-    if (!index || !queryBox || !IsRStarIndexValid(index))
-        return 0;
-
-    double min[3] = {(double)queryBox->minLatitude, (double)queryBox->minLongitude, (double)queryBox->minHeight};
-    double max[3] = {(double)queryBox->maxLatitude, (double)queryBox->maxLongitude, (double)queryBox->maxHeight};
-
-    uint64_t nResults;
-    RTError result = Index_Intersects_count(index->spatialIndex, min, max, 3, &nResults);
-
-    if (result != RT_None)
-        return 0;
-
-    return (unsigned int)nResults;
-}
-
-bool RStarIndex_GetBounds(RStarIndex* index, BoundingBox* bounds) {
-    if (!index || !bounds || !IsRStarIndexValid(index))
-        return false;
-
-    double* pMins, *pMaxs;
-    uint32_t nDimension;
-
-    RTError result = Index_GetBounds(index->spatialIndex, &pMins, &pMaxs, &nDimension);
-
-    if (result != RT_None || nDimension != 3)
-        return false;
-
-    bounds->minLatitude = pMins[0];
-    bounds->minLongitude = pMins[1];
-    bounds->minHeight = pMins[2];
-    bounds->maxLatitude = pMaxs[0];
-    bounds->maxLongitude = pMaxs[1];
-    bounds->maxHeight = pMaxs[2];
-    Index_Free(pMins);
-    Index_Free(pMaxs);
-
-    return true;
-}
-
 void RStarIndex_Flush(RStarIndex* index) {
     if (index && index->spatialIndex)
         Index_Flush(index->spatialIndex);
@@ -516,13 +419,13 @@ void RStarIndex_ClearBuffer(RStarIndex* index) {
         Index_ClearBuffer(index->spatialIndex);
 }
 
-RStarPoint* CreateRStarPoint(float latitude, float longitude, float height, int64_t id, const void* userData, size_t userDataSize) {
+RStarPoint* CreateRStarPoint(float x, float y, float z, int64_t id, const void* userData, size_t userDataSize) {
     RStarPoint* point = (RStarPoint*)malloc(sizeof(RStarPoint));
     if (!point) return NULL;
 
-    point->latitude = latitude;
-    point->longitude = longitude;
-    point->height = height;
+    point->x = x;
+    point->y = y;
+    point->z = z;
     point->id = id;
     point->userData = NULL;
     point->userDataSize = userDataSize;
@@ -543,25 +446,6 @@ void DestroyRStarPoint(RStarPoint* point) {
         free(point->userData);
         free(point);
     }
-}
-
-BoundingBox* CreateBoundingBox(float minLatitude, float minLongitude, float minHeight, 
-      float maxLatitude, float maxLongitude, float maxHeight) {
-    BoundingBox* bbox = (BoundingBox*)malloc(sizeof(BoundingBox));
-    if (!bbox) return NULL;
-
-    bbox->minLatitude = minLatitude;
-    bbox->minLongitude = minLongitude;
-    bbox->minHeight = minHeight;
-    bbox->maxLatitude = maxLatitude;
-    bbox->maxLongitude = maxLongitude;
-    bbox->maxHeight = maxHeight;
-
-    return bbox;
-}
-
-void DestroyBoundingBox(BoundingBox* bbox) {
-    free(bbox);
 }
 
 SpatialQueryResult* CreateSpatialQueryResult() {
@@ -585,39 +469,6 @@ void DestroySpatialQueryResult(SpatialQueryResult* result) {
         }
         free(result);
     }
-}
-
-bool BoundingBox_Intersects(const BoundingBox* box1, const BoundingBox* box2) {
-    if (!box1 || !box2) return false;
-    return !(box1->maxLatitude < box2->minLatitude || box1->minLatitude > box2->maxLatitude ||
-            box1->maxLongitude < box2->minLongitude || box1->minLongitude > box2->maxLongitude ||
-            box1->maxHeight < box2->minHeight || box1->minHeight > box2->maxHeight);
-}
-
-bool BoundingBox_Contains(const BoundingBox* container, const BoundingBox* contained) {
-    if (!container || !contained) return false;
-    return (container->minLatitude <= contained->minLatitude && container->maxLatitude >= contained->maxLatitude &&
-            container->minLongitude <= contained->minLongitude && container->maxLongitude >= contained->maxLongitude &&
-            container->minHeight <= contained->minHeight && container->maxHeight >= contained->maxHeight);
-}
-
-bool BoundingBox_ContainsPoint(const BoundingBox* box, const RStarPoint* point) {
-    if (!box || !point) return false;
-
-    return (point->latitude >= box->minLatitude && point->latitude <= box->maxLatitude &&
-            point->longitude >= box->minLongitude && point->longitude <= box->maxLongitude &&
-            point->height >= box->minHeight && point->height <= box->maxHeight);
-}
-
-void BoundingBox_Expand(BoundingBox* box, const RStarPoint* point) {
-    if (!box || !point) return;
-
-    if (point->latitude < box->minLatitude) box->minLatitude = point->latitude;
-    if (point->latitude > box->maxLatitude) box->maxLatitude = point->latitude;
-    if (point->longitude < box->minLongitude) box->minLongitude = point->longitude;
-    if (point->longitude > box->maxLongitude) box->maxLongitude = point->longitude;
-    if (point->height < box->minHeight) box->minHeight = point->height;
-    if (point->height > box->maxHeight) box->maxHeight = point->height;
 }
 
 RStarPointBatch* CreateRStarPointBatch(unsigned int initialCapacity) {
@@ -686,7 +537,7 @@ RStarIndex* CreateRStarIndexFromBatch(const RStarPointBatch* batch, const unsign
 
     unsigned int validPointCount = 0;
     for (unsigned int i = startIndex; i < endIndex; i++)
-        if (batch->points[bandIndex][i].height != -1)
+        if (batch->points[bandIndex][i].h != -1)
             ++validPointCount;
     
     if (validPointCount == 0) {
@@ -709,14 +560,14 @@ RStarIndex* CreateRStarIndexFromBatch(const RStarPointBatch* batch, const unsign
     unsigned int validIndex = 0;
     for (unsigned int i = startIndex; i < endIndex; i++) {
         RStarPoint* point = &batch->points[bandIndex][i];
-        if (point->height == -1) continue; // skip invalid point
+        if (point->h == -1) continue; // skip invalid point
         ids[validIndex] = point->id;
-        mins[validIndex * 3 + 0] = (double)point->latitude;
-        mins[validIndex * 3 + 1] = (double)point->longitude;
-        mins[validIndex * 3 + 2] = (double)point->height;
-        maxs[validIndex * 3 + 0] = (double)point->latitude;
-        maxs[validIndex * 3 + 1] = (double)point->longitude;
-        maxs[validIndex * 3 + 2] = (double)point->height;
+        mins[validIndex * 3 + 0] = (double)point->x;
+        mins[validIndex * 3 + 1] = (double)point->y;
+        mins[validIndex * 3 + 2] = (double)point->z;
+        maxs[validIndex * 3 + 0] = (double)point->x;
+        maxs[validIndex * 3 + 1] = (double)point->y;
+        maxs[validIndex * 3 + 2] = (double)point->z;
         ++validIndex;
     }
 
@@ -796,17 +647,16 @@ void DestroyRStarForest(RStarForest* forest){
     free(forest);
 }
 
-SpatialQueryResult* NearestNeighborQuery(const RStarPoint* points, RStarIndex* index, double queryPoint[3]) {
-    SpatialQueryResult* result = RStarIndex_NearestNeighborQuery(index, queryPoint, DEFAULT_K_NEIGHBOR);
-    if (!result) return NULL;
-    result->points = (RStarPoint*)malloc(result->count * sizeof(RStarPoint));
-    for (unsigned int i = 0; i < result->count; i++){
-        result->points[i].latitude = points[result->ids[i]].latitude;
-        result->points[i].longitude = points[result->ids[i]].longitude;
-        result->points[i].height = points[result->ids[i]].height;
+void FillQueryPointCoordinates(const RStarPoint* points, unsigned int count, SpatialQueryResult* result) {
+    if (!result) return;
+    result->points = (RStarPoint*)malloc(count * sizeof(RStarPoint));
+    for (unsigned int i = 0; i < count; i++){
+        result->points[i].x = points[result->ids[i]].x;
+        result->points[i].y = points[result->ids[i]].y;
+        result->points[i].z = points[result->ids[i]].z;
+        result->points[i].h = points[result->ids[i]].h;
         result->points[i].id = result->ids[i];
         result->points[i].userData = NULL;
         result->points[i].userDataSize = 0;
     }
-    return result;
 }
