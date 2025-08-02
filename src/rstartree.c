@@ -44,7 +44,6 @@ RStarIndex* CreateRStarIndex(unsigned int capacity, double fillFactor) {
 
 void DestroyRStarIndex(RStarIndex* index) {
     if (!index) return;
-
     if (index->spatialIndex)
         Index_Destroy(index->spatialIndex);
     if (index->properties)

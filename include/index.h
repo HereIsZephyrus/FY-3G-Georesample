@@ -7,6 +7,7 @@
 #include "kdtree.h"
 #include "avltree.h"
 #include "rstartree.h"
+#include "data.h"
 
 typedef struct {
     RStarPoint* points[2];
@@ -24,14 +25,20 @@ void DestroyRStarPointBatch(RStarPointBatch* batch);
 RStarIndex* CreateRStarIndexFromSortedBatch(RStarPointBatch* batch, const unsigned int bandIndex, const BulkLoadConfig* config);
 void RStarPointBatch_SortSpatially(RStarPointBatch* batch, const unsigned int bandIndex);
 
+PointBatchAtHeight* CreatePointBatchAtHeight(unsigned int initialCapacity);
+void DestroyPointBatchAtHeight(PointBatchAtHeight* batch);
+
 typedef struct {
     RStarIndex** index[2]; // [bandIndex][clipCount]
-    KDTree** hindex[2]; // [bandIndex][HEIGHT_COUNT]
-    unsigned int forestSize;
-    unsigned int *treeSize;
+    KDTree** flatindex[2]; // [bandIndex][hightCount]
+    unsigned int RStarForestSize, KDTreeSize;
 } IndexForest;
 
 RStarIndex* CreateRStarIndexFromBatch(const RStarPointBatch* batch, const unsigned int startIndex, const unsigned int endIndex, const unsigned int bandIndex, const BulkLoadConfig* config);
 AVLTree* CreateAVLTreeFromBatch(const RStarPointBatch* pointBatch, const unsigned int startIndex, const unsigned int endIndex, const unsigned int bandIndex);
+KDTree* CreateKDTreeFromBatch(KDCalcPoint* points, int count, unsigned int heightIndex);
+bool CreateRStarForest(const RStarPointBatch* pointBatch, ClipGridResult* finalGrid, IndexForest* forest);
+bool CreateKDTreeForest(const RStarPointBatch* pointBatch, ClipGridResult* finalGrid, IndexForest* forest);
+bool CreateIndexForest(const RStarPointBatch* pointBatch, ClipGridResult* finalGrid, IndexForest* forest);
 void DestroyIndexForest(IndexForest* forest);
 #endif

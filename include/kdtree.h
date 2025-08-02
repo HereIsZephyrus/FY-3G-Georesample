@@ -25,7 +25,6 @@ typedef struct{
 
 int SelectSplitDimension(KDCalcPoint* points, int count);
 KDNode* BuildKDTree(KDCalcPoint* points, int count, int depth);
-KDTree* CreateKDTree(KDCalcPoint* points, int count, unsigned int heightIndex);
 void DestroyKDTree(KDTree* tree);
 void DestroyKDNode(KDNode* node);
 bool InsertKDTree(KDTree* tree, float latitude, float longitude, int64_t id);

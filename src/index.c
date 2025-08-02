@@ -128,13 +128,14 @@ AVLTree* CreateAVLTreeFromBatch(const RStarPointBatch* pointBatch, const unsigne
 void DestroyIndexForest(IndexForest* forest){
     if (!forest) return;
     for (unsigned int bandIndex = 0; bandIndex < 2; bandIndex++){
-        for (unsigned int treeIndex = 0; treeIndex < forest->forestSize; treeIndex++){
-            if (forest->index[bandIndex][treeIndex]){
-                Index_Destroy(forest->index[bandIndex][treeIndex]->spatialIndex);
-                IndexProperty_Destroy(forest->index[bandIndex][treeIndex]->properties);
-                free(forest->index[bandIndex][treeIndex]);
-            }
-        }
+        for (unsigned int treeIndex = 0; treeIndex < forest->RStarForestSize; treeIndex++)
+            if (forest->index[bandIndex][treeIndex])
+                DestroyRStarIndex(forest->index[bandIndex][treeIndex]);
+
+        for (unsigned int treeIndex = 0; treeIndex < forest->KDTreeSize; treeIndex++)
+            if (forest->hindex[bandIndex][treeIndex])
+                DestroyKDTree(forest->hindex[bandIndex][treeIndex]);
+
         free(forest->index[bandIndex]);
     }
     free(forest);
@@ -183,4 +184,49 @@ RStarIndex* CreateRStarIndexFromSortedBatch(RStarPointBatch* batch, const unsign
         return NULL;
     RStarPointBatch_SortSpatially(batch, bandIndex);
     return CreateRStarIndexFromBatch(batch, 0, batch->capacity, bandIndex, config);
+}
+
+KDTree* CreateKDTreeFromBatch(KDCalcPoint* points, int count, unsigned int heightIndex) {
+    KDTree* tree = (KDTree*)malloc(sizeof(KDTree));
+    if (!tree) return NULL;
+
+    tree->heightIndex = heightIndex;
+    tree->root = BuildKDTree(points, count, 0);
+    tree->size = count;
+    return tree;
+}
+
+bool CreateRStarForest(const RStarPointBatch* pointBatch, ClipGridResult* finalGrid, IndexForest* forest){
+    bool success = true;
+    //const unsigned int clipCount = finalGrid->clipCount;
+    const unsigned int clipCount = 1; // for test
+    forest->RStarForestSize = clipCount;
+    for (unsigned int bandIndex = 0; bandIndex < 2; bandIndex++){
+        forest->index[bandIndex] = (RStarIndex**)malloc(clipCount * sizeof(RStarIndex*));
+        if (!forest->index[bandIndex]){
+            fprintf(stderr, "Failed to allocate memory for RStar index for band %d\n", bandIndex);
+            success = false;
+        }
+        BulkLoadConfig* config = CreateDefaultBulkLoadConfig();
+        //#pragma omp parallel for shared(pointBatch, finalGrid, bandIndex, clipCount, config) reduction(||:success)
+        for (unsigned int clipIndex = 0; clipIndex < clipCount; clipIndex++){
+            const unsigned int startIndex = finalGrid->clipGrids[bandIndex][clipIndex].leftLineIndex * SCAN_ANGLE_COUNT * SCAN_HEIGHT_COUNT;
+            const unsigned int endIndex = (finalGrid->clipGrids[bandIndex][clipIndex].rightLineIndex + 1) * SCAN_ANGLE_COUNT * SCAN_HEIGHT_COUNT;
+            forest->index[bandIndex][clipIndex] = CreateRStarIndexFromBatch(pointBatch, startIndex, endIndex, bandIndex, config);
+            if (!forest->index[bandIndex][clipIndex]){
+                fprintf(stderr, "Failed to create RStar index for band %d, clip %d\n", bandIndex, clipIndex);
+                success = false;
+            }
+        }
+        DestroyBulkLoadConfig(config);
+    }
+    return success;
+}
+
+bool CreateKDTreeForest(const RStarPointBatch* pointBatch, ClipGridResult* finalGrid, IndexForest* forest){
+    return true;
+}
+
+bool CreateIndexForest(const RStarPointBatch* pointBatch, ClipGridResult* finalGrid, IndexForest* forest){
+    return true;
 }

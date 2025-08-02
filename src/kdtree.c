@@ -47,16 +47,6 @@ KDNode* BuildKDTree(KDCalcPoint* points, int count, int depth) {
     return node;
 }
 
-KDTree* CreateKDTree(KDCalcPoint* points, int count, unsigned int heightIndex) {
-    KDTree* tree = (KDTree*)malloc(sizeof(KDTree));
-    if (!tree) return NULL;
-
-    tree->heightIndex = heightIndex;
-    tree->root = BuildKDTree(points, count, 0);
-    tree->size = count;
-    return tree;
-}
-
 void DestroyKDNode(KDNode* node) {
     if (!node) return;
     DestroyKDNode(node->left);
@@ -140,7 +130,7 @@ double KDTreeSearchNodeWithinDistance(KDNode* node, float queryLat, float queryL
     }
     
     double firstSubtreeDist = KDTreeSearchNodeWithinDistance(firstSubtree, queryLat, queryLon, distance);
-    
+
     // if the split distance is less than the current best distance, also search the other subtree
     if (firstSubtreeDist != INFINITY && splitDist * splitDist < firstSubtreeDist) {
         double secondSubtreeDist = KDTreeSearchNodeWithinDistance(secondSubtree, queryLat, queryLon, distance);
