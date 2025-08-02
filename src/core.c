@@ -95,27 +95,6 @@ bool CreateRStarForest(const RStarPointBatch* pointBatch, ClipGridResult* finalG
     return success;
 }
 
-bool CreateAVLForest(const RStarPointBatch* pointBatch, ClipGridResult* finalGrid, IndexForest* forest){
-    bool success = true;
-    //const unsigned int clipCount = finalGrid->clipCount;
-    const unsigned int clipCount = 1; // for test
-    forest->forestSize = clipCount;
-    for (unsigned int bandIndex = 0; bandIndex < 2; bandIndex++){
-        forest->hindex[bandIndex] = (AVLTree**)malloc(clipCount * sizeof(AVLTree*));
-        #pragma omp parallel for shared(pointBatch, finalGrid, bandIndex, clipCount) reduction(||:success)
-        for (unsigned int clipIndex = 0; clipIndex < clipCount; clipIndex++){
-            const unsigned int startIndex = finalGrid->clipGrids[bandIndex][clipIndex].leftLineIndex * SCAN_ANGLE_COUNT * SCAN_HEIGHT_COUNT;
-            const unsigned int endIndex = (finalGrid->clipGrids[bandIndex][clipIndex].rightLineIndex + 1) * SCAN_ANGLE_COUNT * SCAN_HEIGHT_COUNT;
-            forest->hindex[bandIndex][clipIndex] = CreateAVLTreeFromBatch(pointBatch, startIndex, endIndex, bandIndex);
-            if (!forest->hindex[bandIndex][clipIndex]){
-                fprintf(stderr, "Failed to create AVL tree for band %d, clip %d\n", bandIndex, clipIndex);
-                success = false;
-            }
-        }
-    }
-    return success;
-}
-
 bool InterpolateClipGrid(const RStarPoint* points, AVLTree* hindexTree, RStarIndex* indexTree, const float* valueArray, ClipGrid* clipGrid){
     /**
     @brief Interpolate the clip grid
@@ -289,7 +268,6 @@ bool InterpolateGrid(const GeodeticGrid* processedGrid, const RStarPointBatch* p
 
 bool InitClipResult(const HDFDataset* dataset, const RStarPointBatch* pointBatch, IndexForest* forest, ClipGridResult* finalGrid){
     InitClipGridArray(dataset, DEFAULT_GRID_SIZE, DEFAULT_MINIMAL_HEIGHT, DEFAULT_HEIGHT_GAP, DEFAULT_HEIGHT_COUNT, finalGrid);
-    CreateAVLForest(pointBatch, finalGrid, forest);
     CreateRStarForest(pointBatch, finalGrid, forest);
     return true;
 }

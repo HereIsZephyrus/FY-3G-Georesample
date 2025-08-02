@@ -1,5 +1,5 @@
 #include "test_suites.h"
-#include "index.h"
+#include "avltree.h"
 #include <float.h>
 
 static int CountIndicesInRange(const float *heightArray, int size, float minHeight, float maxHeight) {

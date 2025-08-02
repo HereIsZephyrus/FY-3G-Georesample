@@ -4,115 +4,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include <spatialindex/capi/sidx_api.h>
-
-typedef struct {
-    int *indices;
-    unsigned int size; // real size
-    unsigned int capacity; // capacity
-} IndexArray;
-
-typedef struct AVLNode {
-    float value;
-    IndexArray *indices;
-    int height;
-    struct AVLNode *left;
-    struct AVLNode *right;
-} AVLNode;
-
-typedef struct {
-    AVLNode *root;
-    int nodeCount;
-} AVLTree;
-
-typedef struct {
-    int *indices;
-    unsigned int count;
-} QueryResult;
-
-IndexArray* CreateIndexArray();
-void DestroyIndexArray(IndexArray *arr);
-bool AppendIndex(IndexArray *arr, int index);
-
-int GetNodeHeight(AVLNode *node);
-int GetNodeBalanceFactor(AVLNode *node);
-void UpdateNodeHeight(AVLNode *node);
-AVLNode* CreateAVLNode(float value, int arrayIndex);
-void DestroyAVLNode(AVLNode *node);
-AVLNode* InsertAVLNode(AVLNode *node, float value, int arrayIndex, bool *success);
-AVLNode* RotateRight(AVLNode *y);
-AVLNode* RotateLeft(AVLNode *x);
-
-AVLTree* CreateAVLTree(void);
-void DestroyAVLTree(AVLTree *tree);
-bool InsertAVLTree(AVLTree *tree, float value, int arrayIndex);
-AVLNode* SearchAVLTree(AVLTree *tree, float value);
-AVLNode* SearchAVLNode(AVLNode *node, float value);
-
-// Range query function
-QueryResult* AVLTreeRangeQuery(AVLTree *tree, float minHeight, float maxHeight);
-void AVLNodeRangeQuery(AVLNode *node, float minHeight, float maxHeight, int **result, unsigned int *count, unsigned int *capacity);
-void DestroyQueryResult(QueryResult *result);
-bool AVLNodeRangeExistQuery(AVLNode *node, float minHeight, float maxHeight);
-bool AVLTreeRangeExistQuery(AVLTree *tree, float minHeight, float maxHeight);
-
-int AVLTreeGetHeight(AVLTree *tree);
-bool AVLTreeIsEmpty(AVLTree *tree);
-
-AVLTree* CreateAVLTreeFromArray(const float *values, int arraySize);
-
-int AVLNodeGetHeight(AVLNode *node);
-int AVLNodeGetBalanceFactor(AVLNode *node);
-bool AVLTreeValidateBalance(AVLTree *tree);
-bool AVLNodeValidateBalance(AVLNode *node);
-
-typedef struct {
-    IndexH spatialIndex;
-    IndexPropertyH properties;
-    bool isValid;
-    unsigned int capacity; // must greater than 32
-    unsigned int totalPointCount;
-    double fillFactor;
-} RStarIndex;
-
-typedef struct {
-    RStarIndex** index[2]; // [bandIndex][clipCount]
-    AVLTree** hindex[2]; // [bandIndex][clipCount]
-    unsigned int forestSize;
-    unsigned int *treeSize;
-} IndexForest;
-
-typedef struct {
-    float x, y, z, h;
-    int64_t id;
-    void* userData;
-    size_t userDataSize;
-} RStarPoint;
-
-typedef struct {
-    int64_t* ids;
-    RStarPoint* points;
-    unsigned int count;
-    unsigned int capacity;
-} SpatialQueryResult;
-
-RStarIndex* CreateRStarIndex(unsigned int capacity, double fillFactor);
-void DestroyRStarIndex(RStarIndex* index);
-bool IsRStarIndexValid(RStarIndex* index);
-
-bool RStarIndex_InsertPoint(RStarIndex* index, const RStarPoint* point);
-bool RStarIndex_DeletePoint(RStarIndex* index, const RStarPoint* point);
-
-SpatialQueryResult* RStarIndex_NearestNeighborQuery(RStarIndex* index, double queryPoint[3], unsigned int k);
-void FillQueryPointCoordinates(const RStarPoint* points, unsigned int count, SpatialQueryResult* result);
-
-void RStarIndex_Flush(RStarIndex* index);
-void RStarIndex_ClearBuffer(RStarIndex* index);
-
-RStarPoint* CreateRStarPoint(float x, float y, float z, int64_t id, const void* userData, size_t userDataSize);
-void DestroyRStarPoint(RStarPoint* point);
-SpatialQueryResult* CreateSpatialQueryResult();
-void DestroySpatialQueryResult(SpatialQueryResult* result);
+#include "kdtree.h"
+#include "avltree.h"
+#include "rstartree.h"
 
 typedef struct {
     RStarPoint* points[2];
@@ -120,22 +14,24 @@ typedef struct {
 } RStarPointBatch;
 
 typedef struct {
-    unsigned int nodeCapacity;
-    double fillFactor;
-    unsigned int pageSize;
-    unsigned int numberOfPages;
-    bool enableParallelSort;
-} BulkLoadConfig;
+    KDCalcPoint* points;
+    unsigned int count;
+    unsigned int capacity;
+} PointBatchAtHeight;
 
 RStarPointBatch* CreateRStarPointBatch(unsigned int initialCapacity);
 void DestroyRStarPointBatch(RStarPointBatch* batch);
+RStarIndex* CreateRStarIndexFromSortedBatch(RStarPointBatch* batch, const unsigned int bandIndex, const BulkLoadConfig* config);
+void RStarPointBatch_SortSpatially(RStarPointBatch* batch, const unsigned int bandIndex);
+
+typedef struct {
+    RStarIndex** index[2]; // [bandIndex][clipCount]
+    KDTree** hindex[2]; // [bandIndex][HEIGHT_COUNT]
+    unsigned int forestSize;
+    unsigned int *treeSize;
+} IndexForest;
 
 RStarIndex* CreateRStarIndexFromBatch(const RStarPointBatch* batch, const unsigned int startIndex, const unsigned int endIndex, const unsigned int bandIndex, const BulkLoadConfig* config);
 AVLTree* CreateAVLTreeFromBatch(const RStarPointBatch* pointBatch, const unsigned int startIndex, const unsigned int endIndex, const unsigned int bandIndex);
-BulkLoadConfig* CreateDefaultBulkLoadConfig();
-void DestroyBulkLoadConfig(BulkLoadConfig* config);
-
-RStarIndex* CreateRStarIndexFromSortedBatch(RStarPointBatch* batch, const unsigned int bandIndex, const BulkLoadConfig* config);
-void RStarPointBatch_SortSpatially(RStarPointBatch* batch, const unsigned int bandIndex);
-void DestroyRStarForest(IndexForest* forest);
+void DestroyIndexForest(IndexForest* forest);
 #endif

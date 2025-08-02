@@ -6,6 +6,7 @@ find_package(OpenMP REQUIRED)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopenmp")
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -g -O -Wall -Wextra")
 set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3 -Wall -march=native")
+
 add_subdirectory(libspatialindex)
 add_subdirectory(tests/Unity)
 
@@ -22,12 +23,16 @@ set(TEST_FILES
     ${TEST_DIR}/unit_readHDF.c
     ${TEST_DIR}/unit_interpolate.c
     ${TEST_DIR}/unit_RTree.c
+    ${TEST_DIR}/unit_KDTree.c
     ${TEST_DIR}/unit_core.c
     ${TEST_DIR}/unit_AVLTree.c
     ${TEST_DIR}/test_suites.c
 )
 
 set(SOURCE_FILES
+    src/rstartree.c
+    src/avltree.c
+    src/kdtree.c
     src/interface.c
     src/interpolate.c
     src/geotransfer.c
