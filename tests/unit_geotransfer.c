@@ -23,7 +23,7 @@ void test_geotransfer(void) {
         sprintf(msg, "Test Suite %d:", i);
         TEST_MESSAGE(msg);
         double in_latitude = random_latitude(), in_longitude = random_longitude(), in_height = random_height();
-        TEST_ASSERT_EQUAL(true, IsGeodeticValid(in_latitude, in_longitude, in_height));
+        TEST_ASSERT_TRUE(IsGeodeticValid(in_latitude, in_longitude, in_height));
         double x, y, z;
         TransferGeodeticToCartesian(in_latitude, in_longitude, in_height, &x, &y, &z);
         Coordinate iter_coordinate = TransferCartesianToGeodetic(x, y, z, true);

@@ -24,13 +24,14 @@ void DestroyHDFDataset(HDFDataset* dataset){
     }
 }
 
-void DestroyFinalGrid(GeodeticGrid* finalGrid){
+void DestroyGeodeticGrid(GeodeticGrid* finalGrid){
     if (!finalGrid) return;
     for (int bandIndex = 0; bandIndex < 2; bandIndex++){
         free(finalGrid->latitudeArray[bandIndex]);
         free(finalGrid->longitudeArray[bandIndex]);
         free(finalGrid->elevationArray[bandIndex]);
         free(finalGrid->valueArray[bandIndex]);
+        free(finalGrid->validArray[bandIndex]);
     }
 }
 
@@ -75,10 +76,12 @@ bool InitGeodeticGrid(GeodeticGrid* finalGrid, const int lineCount, const int he
         finalGrid->longitudeArray[bandIndex] = (float*)malloc(memSize);
         finalGrid->elevationArray[bandIndex] = (float*)malloc(memSize);
         finalGrid->valueArray[bandIndex] = (float*)malloc(memSize);
-        if (!finalGrid->latitudeArray[bandIndex] || !finalGrid->longitudeArray[bandIndex] || !finalGrid->elevationArray[bandIndex] || !finalGrid->valueArray[bandIndex]){
+        finalGrid->validArray[bandIndex] = (bool*)malloc(memSize);
+        if (!finalGrid->latitudeArray[bandIndex] || !finalGrid->longitudeArray[bandIndex] || !finalGrid->elevationArray[bandIndex] || !finalGrid->valueArray[bandIndex] || !finalGrid->validArray[bandIndex]){
             fprintf(stderr, "Failed to allocate memory for latitudeArray, longitudeArray, elevationArray or valueArray\n");
             return false;
         }
+        memset(finalGrid->validArray[bandIndex], true, memSize);
     }
     return true;
 }
@@ -90,7 +93,8 @@ void DestroyClipGridResult(ClipGridResult* clipGridResult){
             for (unsigned int clipIndex = 0; clipIndex < clipGridResult->clipCount; clipIndex++)
                 if (clipGridResult->clipGrids[bandIndex][clipIndex].value)
                     free(clipGridResult->clipGrids[bandIndex][clipIndex].value);
-            free(clipGridResult->clipGrids[bandIndex]);
+            if (clipGridResult->clipGrids[bandIndex])
+                free(clipGridResult->clipGrids[bandIndex]);
         }
     }
 }

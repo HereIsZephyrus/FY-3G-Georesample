@@ -1,17 +1,6 @@
 #include <stdio.h>
-#include "geotransfer.h"
 #include "interface.h"
-#include "networking.h"
-
-bool TransferData(const char *input_file, const char *output_file) {
-    /**
-     * @brief transfer FY-3G raw HDF5 3D prespirator data to geodetic coordinates
-     * @param input_file: path to the raw HDF5 file
-     * @param output_file: path to the output file
-     * @return true if success, false if failed
-    */
-    return true;
-}
+#include "core.h"
 
 int main(int argc, char *argv[]) {
     /**
@@ -26,5 +15,51 @@ int main(int argc, char *argv[]) {
     }
     const char *input_file = argv[1];
     const char *output_file = argv[2];
-    return TransferData(input_file, output_file);
+    HDFDataset dataset;
+    if (!ReadHDF5(input_file, &dataset)){
+        printf("Failed to read HDF5 file\n");
+        return -1;
+    }
+
+    GeodeticGrid processedGrid;
+    unsigned int capacity = dataset.globalAttribute.scanLineCount * SCAN_ANGLE_COUNT * SCAN_HEIGHT_COUNT;
+    PointBatch* pointBatch = CreateRStarPointBatch(capacity);
+    if (!ProcessDataset(&dataset, &processedGrid, pointBatch)){
+        printf("Failed to process dataset\n");
+        DestroyHDFDataset(&dataset);
+        DestroyRStarPointBatch(pointBatch);
+        DestroyGeodeticGrid(&processedGrid);
+        return -2;
+    }
+    if (!WriteHDF5(output_file, &processedGrid, &dataset.globalAttribute)){
+        printf("Failed to write HDF5 file\n");
+    }
+
+    IndexForest forest;
+    ClipGridResult finalGrid;
+    if (!InitClipResult(&dataset, &processedGrid, pointBatch, &forest, &finalGrid)){
+        printf("Failed to init clip result\n");
+        DestroyHDFDataset(&dataset);
+        DestroyRStarPointBatch(pointBatch);
+        DestroyGeodeticGrid(&processedGrid);
+        DestroyIndexForest(&forest);
+        DestroyClipGridResult(&finalGrid);
+        return -3;
+    }
+    DestroyHDFDataset(&dataset);
+    DestroyRStarPointBatch(pointBatch);
+    printf("Interpolate grid\n");
+    if (!InterpolateGrid(&processedGrid, &forest, &finalGrid)){
+        printf("Failed to interpolate grid\n");
+        DestroyIndexForest(&forest);
+        DestroyClipGridResult(&finalGrid);
+        DestroyGeodeticGrid(&processedGrid);
+        return -4;
+    }
+    printf("Interpolate successfully\n");
+
+    DestroyGeodeticGrid(&processedGrid);
+    DestroyIndexForest(&forest);
+    DestroyClipGridResult(&finalGrid);
+    return 0;
 }

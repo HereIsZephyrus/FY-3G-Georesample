@@ -351,33 +351,16 @@ bool ReadBand(hid_t fileID, const char* bandName, HDFGlobalAttribute* globalAttr
         return false;
     }
     
-    const hsize_t totalLines = globalAttribute->scanLineCount;
-    const hsize_t numBatches = (totalLines + BATCH_SIZE - 1) / BATCH_SIZE;
-    const hsize_t restBatchSize = totalLines % BATCH_SIZE;
-    
     bool success = true;
-    BatchReadContext ctxfull, ctxrest;
-    if (!InitBatchReadContext(&ctxfull, BATCH_SIZE) || !InitBatchReadContext(&ctxrest, restBatchSize))
+    BatchReadContext ctx;
+    if (!InitBatchReadContext(&ctx, globalAttribute->scanLineCount))
         success = false;
     else {
-        #pragma omp for schedule(dynamic)
-        for (hsize_t batchIdx = 0; batchIdx < numBatches; batchIdx++) {
-            hsize_t startLine = batchIdx * BATCH_SIZE;
-            if (startLine + BATCH_SIZE > totalLines){
-                if (!ReadBatchScanLines(startLine, totalLines - startLine, &required, &ctxrest, infoArray)) {
-                    fprintf(stderr, "Failed to read batch starting at line %lu\n", startLine);
-                    success = false;
-                }
-            }
-            else {
-                if (!ReadBatchScanLines(startLine, BATCH_SIZE, &required, &ctxfull, infoArray)) {
-                    fprintf(stderr, "Failed to read batch starting at line %lu\n", startLine);
-                    success = false;
-                }
-            }
+        if (!ReadBatchScanLines(0, globalAttribute->scanLineCount, &required, &ctx, infoArray)) {
+            fprintf(stderr, "Failed to read scan lines\n");
+            success = false;
         }
-        DestroyBatchReadContext(&ctxfull);
-        DestroyBatchReadContext(&ctxrest);
+        DestroyBatchReadContext(&ctx);
     }
 
     // free all resources
@@ -389,7 +372,6 @@ bool ReadBand(hid_t fileID, const char* bandName, HDFGlobalAttribute* globalAttr
     H5Dclose(required.groundHeightID);
     H5Dclose(required.valueID);
     H5Dclose(required.binClutterID);
-    
     return success;
 }
 
@@ -517,33 +499,13 @@ bool InitBatchReadContext(BatchReadContext* ctx, hsize_t batchSize) {
     ctx->memspace3D_2 = H5Screate_simple(3, dims3D_2, NULL);
     ctx->memspace3D_500 = H5Screate_simple(3, dims3D_500, NULL);
     
-    ctx->elevation_batch = (float*)malloc(batchSize * SCAN_ANGLE_COUNT * sizeof(float));
-    ctx->latitude_batch = (float*)malloc(batchSize * SCAN_ANGLE_COUNT * 2 * sizeof(float));
-    ctx->longitude_batch = (float*)malloc(batchSize * SCAN_ANGLE_COUNT * 2 * sizeof(float));
-    ctx->groundHeight_batch = (float*)malloc(batchSize * SCAN_ANGLE_COUNT * sizeof(float));
-    ctx->zenith_batch = (float*)malloc(batchSize * SCAN_ANGLE_COUNT * sizeof(float));
-    ctx->value_batch = (float*)malloc(batchSize * SCAN_ANGLE_COUNT * SCAN_HEIGHT_COUNT * sizeof(float));
-    ctx->binClutter_batch = (float*)malloc(batchSize * SCAN_ANGLE_COUNT * sizeof(float));
-    ctx->height_batch = (float*)malloc(batchSize * SCAN_ANGLE_COUNT * SCAN_HEIGHT_COUNT * sizeof(float));
-    
-    return (ctx->elevation_batch && ctx->latitude_batch && ctx->longitude_batch && 
-            ctx->groundHeight_batch && ctx->zenith_batch && ctx->value_batch && 
-            ctx->binClutter_batch && ctx->height_batch);
+    return true;
 }
 
 void DestroyBatchReadContext(BatchReadContext* ctx) {
     H5Sclose(ctx->memspace2D);
     H5Sclose(ctx->memspace3D_2);
     H5Sclose(ctx->memspace3D_500);
-    
-    free(ctx->elevation_batch);
-    free(ctx->latitude_batch);
-    free(ctx->longitude_batch);
-    free(ctx->groundHeight_batch);
-    free(ctx->zenith_batch);
-    free(ctx->value_batch);
-    free(ctx->binClutter_batch);
-    free(ctx->height_batch);
 }
 
 bool ReadBatchDataset(hid_t datasetID, int rank, int dim3, hsize_t startLine, hsize_t batchSize, hid_t memspaceID, void* buffer) {
@@ -590,18 +552,31 @@ bool ReadBatchScanLines(hsize_t startLine, hsize_t batchSize, const HDFBandRequi
     @param infoArray: the info array to store the data
     @return true if successful, false otherwise
     */
-    if (!ReadBatchDataset(required->elevationID, 2, 0, startLine, batchSize, ctx->memspace2D, ctx->elevation_batch) ||
-        !ReadBatchDataset(required->latitudeID, 3, 2, startLine, batchSize, ctx->memspace3D_2, ctx->latitude_batch) ||
-        !ReadBatchDataset(required->longitudeID, 3, 2, startLine, batchSize, ctx->memspace3D_2, ctx->longitude_batch) ||
-        !ReadBatchDataset(required->groundHeightID, 2, 0, startLine, batchSize, ctx->memspace2D, ctx->groundHeight_batch) ||
-        !ReadBatchDataset(required->zenithID, 2, 0, startLine, batchSize, ctx->memspace2D, ctx->zenith_batch) ||
-        !ReadBatchDataset(required->valueID, 3, SCAN_HEIGHT_COUNT, startLine, batchSize, ctx->memspace3D_500, ctx->value_batch) ||
-        !ReadBatchDataset(required->heightID, 3, SCAN_HEIGHT_COUNT, startLine, batchSize, ctx->memspace3D_500, ctx->height_batch) ||
-        !ReadBatchDataset(required->binClutterID, 2, 0, startLine, batchSize, ctx->memspace2D, ctx->binClutter_batch)) {
+    float* elevation_batch = (float*)malloc(batchSize * SCAN_ANGLE_COUNT * sizeof(float));
+    float* latitude_batch = (float*)malloc(batchSize * SCAN_ANGLE_COUNT * 2 * sizeof(float));
+    float* longitude_batch = (float*)malloc(batchSize * SCAN_ANGLE_COUNT * 2 * sizeof(float));
+    float* groundHeight_batch = (float*)malloc(batchSize * SCAN_ANGLE_COUNT * sizeof(float));
+    float* zenith_batch = (float*)malloc(batchSize * SCAN_ANGLE_COUNT * sizeof(float));
+    float* value_batch = (float*)malloc(batchSize * SCAN_ANGLE_COUNT * SCAN_HEIGHT_COUNT * sizeof(float));
+    float* binClutter_batch = (float*)malloc(batchSize * SCAN_ANGLE_COUNT * sizeof(float));
+    float* height_batch = (float*)malloc(batchSize * SCAN_ANGLE_COUNT * SCAN_HEIGHT_COUNT * sizeof(float));
+    if (!ReadBatchDataset(required->elevationID, 2, 0, startLine, batchSize, ctx->memspace2D, elevation_batch) ||
+        !ReadBatchDataset(required->latitudeID, 3, 2, startLine, batchSize, ctx->memspace3D_2, latitude_batch) ||
+        !ReadBatchDataset(required->longitudeID, 3, 2, startLine, batchSize, ctx->memspace3D_2, longitude_batch) ||
+        !ReadBatchDataset(required->groundHeightID, 2, 0, startLine, batchSize, ctx->memspace2D, groundHeight_batch) ||
+        !ReadBatchDataset(required->zenithID, 2, 0, startLine, batchSize, ctx->memspace2D, zenith_batch) ||
+        !ReadBatchDataset(required->valueID, 3, SCAN_HEIGHT_COUNT, startLine, batchSize, ctx->memspace3D_500, value_batch) ||
+        !ReadBatchDataset(required->heightID, 3, SCAN_HEIGHT_COUNT, startLine, batchSize, ctx->memspace3D_500, height_batch) ||
+        !ReadBatchDataset(required->binClutterID, 2, 0, startLine, batchSize, ctx->memspace2D, binClutter_batch)) {
+        free(elevation_batch);
+        free(latitude_batch);
+        free(longitude_batch);
+        free(groundHeight_batch);
+        free(zenith_batch);
+        free(value_batch);
         return false;
     }
     
-    #pragma omp parallel for
     for (hsize_t i = 0; i < batchSize; i++) {
         hsize_t lineIdx = startLine + i;
         GridInfo* infoLine = (GridInfo*)malloc(SCAN_ANGLE_COUNT * sizeof(GridInfo));
@@ -614,26 +589,33 @@ bool ReadBatchScanLines(hsize_t startLine, hsize_t batchSize, const HDFBandRequi
             
             infoLine[angleIndex].lineIndex = lineIdx;
             infoLine[angleIndex].angleIndex = angleIndex;
-            infoLine[angleIndex].groundL = ctx->longitude_batch[base3D_2];
-            infoLine[angleIndex].groundB = ctx->latitude_batch[base3D_2];
-            infoLine[angleIndex].groundH = ctx->groundHeight_batch[base2D];
-            infoLine[angleIndex].airL = ctx->longitude_batch[base3D_2 + 1];
-            infoLine[angleIndex].airB = ctx->latitude_batch[base3D_2 + 1];
-            infoLine[angleIndex].zeta = ctx->zenith_batch[base2D];
-            infoLine[angleIndex].evaluation = ctx->elevation_batch[base2D];
-            infoLine[angleIndex].clutterFreeBottomIndex = ctx->binClutter_batch[base2D];
+            infoLine[angleIndex].groundL = longitude_batch[base3D_2];
+            infoLine[angleIndex].groundB = latitude_batch[base3D_2];
+            infoLine[angleIndex].groundH = groundHeight_batch[base2D];
+            infoLine[angleIndex].airL = longitude_batch[base3D_2 + 1];
+            infoLine[angleIndex].airB = latitude_batch[base3D_2 + 1];
+            infoLine[angleIndex].zeta = zenith_batch[base2D];
+            infoLine[angleIndex].evaluation = elevation_batch[base2D];
+            infoLine[angleIndex].clutterFreeBottomIndex = binClutter_batch[base2D];
             infoLine[angleIndex].measuredArray = (float*)malloc(SCAN_HEIGHT_COUNT * sizeof(float));
             infoLine[angleIndex].heightArray = (float*)malloc(SCAN_HEIGHT_COUNT * sizeof(float));
             
             if (infoLine[angleIndex].measuredArray && infoLine[angleIndex].heightArray) {
-                memcpy(infoLine[angleIndex].measuredArray, &ctx->value_batch[base3D_500], 
+                memcpy(infoLine[angleIndex].measuredArray, &value_batch[base3D_500], 
                        SCAN_HEIGHT_COUNT * sizeof(float));
-                memcpy(infoLine[angleIndex].heightArray, &ctx->height_batch[base3D_500], 
+                memcpy(infoLine[angleIndex].heightArray, &height_batch[base3D_500], 
                        SCAN_HEIGHT_COUNT * sizeof(float));
             }
         }
         infoArray[lineIdx] = infoLine;
     }
-    
+    free(elevation_batch);
+    free(latitude_batch);
+    free(longitude_batch);
+    free(groundHeight_batch);
+    free(zenith_batch);
+    free(value_batch);
+    free(binClutter_batch);
+    free(height_batch);
     return true;
 }
