@@ -173,8 +173,10 @@ void DestroyIndexForest(IndexForest* forest){
             if (forest->flatindex[bandIndex][treeIndex])
                 DestroyKDTree(forest->flatindex[bandIndex][treeIndex]);
 
-        free(forest->index[bandIndex]);
-        free(forest->flatindex[bandIndex]);
+        if (forest->index[bandIndex])
+            free(forest->index[bandIndex]);
+        if (forest->flatindex[bandIndex])
+            free(forest->flatindex[bandIndex]);
     }
 }
 

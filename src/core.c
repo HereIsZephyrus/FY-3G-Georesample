@@ -62,8 +62,8 @@ bool ProcessDataset(const HDFDataset* dataset, GeodeticGrid* geodeticGrid, Point
         fprintf(stderr, "Failed to initialize final grid\n");
         return false;
     }
+    #pragma omp parallel for shared(dataset, geodeticGrid, pointBatch) collapse(2)
     for (int bandIndex = 0; bandIndex < 2; bandIndex++){
-        #pragma omp parallel for shared(dataset, geodeticGrid, bandIndex, pointBatch)
         for (unsigned int lineIndex = 0; lineIndex < geodeticGrid->lineCount; lineIndex++)
             for (unsigned int angleIndex = 0; angleIndex < SCAN_ANGLE_COUNT; angleIndex++){
                 CalculateGridData( &dataset->infoArray[bandIndex][lineIndex][angleIndex], 
@@ -221,8 +221,8 @@ bool InterpolateClipGridBatch(RStarIndex* indexTree, KDTree** flatindexForest, c
 bool InterpolateGrid(const GeodeticGrid* processedGrid, IndexForest* forest, ClipGridResult* finalGrid){
     bool success = true;
     unsigned int clipCount = finalGrid->clipCount;
+    #pragma omp parallel for shared(forest, processedGrid, finalGrid, clipCount) reduction(||:success) collapse(2) schedule(dynamic)
     for (unsigned int bandIndex = 0; bandIndex < 2; bandIndex++)
-        #pragma omp parallel for shared(forest, processedGrid, finalGrid, bandIndex, clipCount) reduction(||:success)
         for (unsigned int clipIndex = 0; clipIndex < clipCount; clipIndex++){
             if (!InterpolateClipGridBatch(forest->index[bandIndex][clipIndex], forest->flatindex[bandIndex], processedGrid->valueArray[bandIndex], &finalGrid->clipGrids[bandIndex][clipIndex])){
                 fprintf(stderr, "Failed to interpolate clip grid for band %d, clip %d\n", bandIndex, clipIndex);
