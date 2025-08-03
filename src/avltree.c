@@ -1,8 +1,8 @@
-#include "avltree.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include "avltree.h"
 
 IndexArray* CreateIndexArray() {
     IndexArray *arr = malloc(sizeof(IndexArray));

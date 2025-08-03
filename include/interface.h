@@ -1,5 +1,6 @@
 #ifndef INTERFACE_H
 #define INTERFACE_H
+#include <H5Ipublic.h>
 #include <hdf5.h>
 #include "data.h"
 #include "config.h"
@@ -26,6 +27,7 @@ bool ReadSingleDataset(int rank, hid_t datasetID, hsize_t* offset, hsize_t* coun
 char* ConstructPath(const char* pathNames[], const int pathLength);
 bool WriteTotalGeodetic(const char* filename, const GeodeticGrid* finalGrid, const HDFGlobalAttribute* globalAttribute);
 bool WriteClipResult(const char* filename, const ClipGridResult* clipResult);
+bool WriteGlobalAttribute(hid_t fileID, const HDFGlobalAttribute* globalAttribute);
 bool ReadBatchScanLines(hsize_t startLine, hsize_t batchSize, const HDFBandRequired* required, BatchReadContext* ctx, GridInfo** infoArray);
 bool ReadBatchDataset(hid_t datasetID, int rank, int dim3, hsize_t startLine, hsize_t batchSize, hid_t memspaceID, void* buffer);
 char* ConstructOutputFilename(const char* filename, const char* suffix);

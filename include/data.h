@@ -4,7 +4,6 @@
 #define SCAN_HEIGHT_COUNT 500
 #define GEOLOCATION_GROUP_NAME "Geolocation"
 #define PRE_GROUP_NAME "PRE"
-#include "config.h"
 #include <stdlib.h>
 #include <hdf5.h>
 

@@ -96,11 +96,11 @@ void test_rstar3d_large_scale_insertion(void) {
     RStarIndex* index = CreateRStarIndex(100, 0.7);
     TEST_ASSERT_NOT_NULL(index);
     
-    const int NUM_POINTS = 10000;
+    const unsigned int NUM_POINTS = 10000;
     RStarPoint** points = (RStarPoint**)malloc(NUM_POINTS * sizeof(RStarPoint*));
     TEST_ASSERT_NOT_NULL(points);
     
-    for (int i = 0; i < NUM_POINTS; i++) {
+    for (unsigned int i = 0; i < NUM_POINTS; i++) {
         float lat = (float)(rand() % 1000) / 10.0f;
         float lon = (float)(rand() % 1000) / 10.0f;
         float height = (float)(rand() % 500) / 10.0f;
@@ -120,7 +120,7 @@ void test_rstar3d_large_scale_insertion(void) {
     TEST_ASSERT_TRUE(queryResult->count < NUM_POINTS);
     
     DestroySpatialQueryResult(queryResult);
-    for (int i = 0; i < NUM_POINTS; i++) {
+    for (unsigned int i = 0; i < NUM_POINTS; i++) {
         DestroyRStarPoint(points[i]);
     }
     free(points);
@@ -223,10 +223,8 @@ void test_rstar3d_mixed_operations_stress(void) {
             
             double queryPoint[3] = {queryLat, queryLon, queryHeight};
             SpatialQueryResult* result = RStarIndex_NearestNeighborQuery(index, queryPoint, 1000);
-            if (result) {
-                TEST_ASSERT_TRUE(result->count >= 0);
+            if (result)
                 DestroySpatialQueryResult(result);
-            }
             
         } else {  // 10% delete
             if (insertedPoints > 0 && rand() % 2 == 0) {

@@ -52,10 +52,10 @@ void CalculateGridData(const GridInfo* sampleGridInfo, GeodeticGrid* geodeticGri
 
 bool ProcessDataset(const HDFDataset* dataset, GeodeticGrid* geodeticGrid, PointBatch* pointBatch){
     /**
-    @brief Construct final grid
+    @brief Read the raw data and process it into grids
     @param dataset: the dataset to construct the final grid
-    @param geodeticGrid: the final grid to store the data
-    @param pointBatch: the point batch to store the data
+    @param geodeticGrid: the grid to store the processed raw data
+    @param pointBatch: the point batch to store the point data for further batch utilization
     @return true if successful, false otherwise
     */
     if (!InitGeodeticGrid(geodeticGrid, dataset->globalAttribute.scanLineCount, SCAN_HEIGHT_COUNT)){
@@ -75,12 +75,13 @@ bool ProcessDataset(const HDFDataset* dataset, GeodeticGrid* geodeticGrid, Point
 
 bool InterpolateClipGrid(const RStarPoint* points, KDTree** flatindexForest, RStarIndex* indexTree, const float* valueArray, ClipGrid* clipGrid){
     /**
-    @brief Interpolate the clip grid
+    @brief Interpolate a clipped grid
     @param points: the points to interpolate
     @param flatindexForest: the KD tree slide by height index
     @param indexTree: the R* tree index
     @param valueArray: the value array
-    @param clipGrid: the clip grid
+    @param clipGrid: the clip grid to interpolate
+    @return true if successful, false otherwise
     */
     if (!indexTree || !flatindexForest){
         fprintf(stderr, "Failed to interpolate clip grid, index tree or flatindex tree is NULL\n");
@@ -229,6 +230,13 @@ static unsigned int GetOrder(unsigned int index, unsigned int total){
 }
 
 bool InterpolateGrid(const GeodeticGrid* processedGrid, IndexForest* forest, ClipGridResult* finalGrid){
+    /**
+    @brief Interpolate the grid
+    @param processedGrid: the processed grid
+    @param forest: the index forest
+    @param finalGrid: the final grid
+    @return true if successful, false otherwise
+    */
     bool success = true;
     unsigned int clipCount = finalGrid->clipCount;
     #pragma omp parallel for shared(forest, processedGrid, finalGrid, clipCount) reduction(||:success) collapse(2) schedule(dynamic)

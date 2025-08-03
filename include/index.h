@@ -7,7 +7,6 @@
 #include "avltree.h"
 #include "rstartree.h"
 #include "data.h"
-#include "config.h"
 
 typedef struct {
     RStarPoint* points[2];
@@ -35,8 +34,6 @@ PointBatch* CreateRStarPointBatch(unsigned int initialCapacity);
 void DestroyRStarPointBatch(PointBatch* batch);
 void DestroyKDCalcPointBatch(KDCalcPointBatch* batch);
 KDCalcPointBatch* ConstructKDCalcPointFromPointBatch(const GeodeticGrid* geodeticGrid, unsigned int bandIndex);
-RStarIndex* CreateRStarIndexFromSortedBatch(PointBatch* batch, const unsigned int bandIndex, const BulkLoadConfig* config);
-void RStarPointBatch_SortSpatially(PointBatch* batch, const unsigned int bandIndex);
 unsigned int CalcHeightIndex(float height, unsigned int** indices);
 void InsertKDCalcPoint(KDCalcPointClip* point, const float latitude, const float longitude, const unsigned int index);
 

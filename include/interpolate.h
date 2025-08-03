@@ -4,7 +4,6 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <math.h>
-#include "config.h"
 #include "geotransfer.h"
 #include "data.h"
 #include "rstartree.h"
@@ -26,5 +25,4 @@ unsigned int SearchLineIndex(const float latitude, unsigned int bias, GridInfo**
 bool QueryBoundingBox(ClipGrid* clipGrid, GridInfo** const infoArray, const unsigned int lineCount);
 double InterpolateValueIDW(const double queryPoint[3], const float queryHeight, const SpatialQueryResult* result, const float* valueArray, float power);
 double InterpolateValueIDW_v(const unsigned int neightborCount, const double* distances, const int64_t* ids, const float* valueArray, const float power);
-//double InterpolateValueIDWBatch(const double queryPoint[3], const float queryHeight, const SpatialQueryResult* result, const float* valueArray, const RStarPoint* points, float power);
 #endif

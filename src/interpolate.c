@@ -1,6 +1,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "config.h"
 #include "data.h"
 #include "interpolate.h"
 #include "geotransfer.h"
@@ -197,8 +198,8 @@ double InterpolateValueIDW(const double queryPoint[3], const float queryHeight, 
         RStarPoint* point = &result->points[i];
         if (point->h == -1 || fabs(point->h - queryHeight) > g_config->height_gap * 2) continue; // skip invalid height points
         double distance = sqrt((queryPoint[0] - point->x) * (queryPoint[0] - point->x) + (queryPoint[1] - point->y) * (queryPoint[1] - point->y) + (queryPoint[2] - point->z) * (queryPoint[2] - point->z));
-        if (distance > 2 * g_config->grid_size) continue; // skip points too far away
-        if (distance < 100) return valueArray[pointId]; // return exact value
+        if (distance > g_config->max_neighbor_distance) continue; // skip points too far away
+        if (distance < g_config->min_neighbor_distance) return valueArray[pointId]; // return exact value
         double weight = 1.0 / pow(distance, power);
         weightSum += weight;
         valueSum += weight * valueArray[pointId];
@@ -212,8 +213,8 @@ double InterpolateValueIDW_v(const unsigned int neightborCount, const double* di
     double weightSum = 0.0;
     double valueSum = 0.0;
     for (unsigned int i = 0; i < neightborCount; i++){
-        if (distances[i] > 2 * g_config->grid_size) continue; // skip points too far away
-        if (distances[i] < 100) return valueArray[ids[i]]; // return exact value
+        if (distances[i] > g_config->max_neighbor_distance) continue; // skip points too far away
+        if (distances[i] < g_config->min_neighbor_distance) return valueArray[ids[i]]; // return exact value
         double weight = 1.0 / pow(distances[i], power);
         weightSum += weight;
         valueSum += weight * valueArray[ids[i]];
