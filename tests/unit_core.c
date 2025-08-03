@@ -10,7 +10,7 @@ void test_comprehensive(void){
     TEST_MESSAGE("Read HDF5 file successfully");
     GeodeticGrid processedGrid;
     unsigned int capacity = dataset.globalAttribute.scanLineCount * SCAN_ANGLE_COUNT * SCAN_HEIGHT_COUNT;
-    RStarPointBatch* pointBatch = CreateRStarPointBatch(capacity);
+    PointBatch* pointBatch = CreateRStarPointBatch(capacity);
     TEST_ASSERT_TRUE(ProcessDataset(&dataset, &processedGrid, pointBatch));
     IndexForest forest;
     ClipGridResult finalGrid;

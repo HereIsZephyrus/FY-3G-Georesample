@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <time.h>
 #include "index.h"
+#include "interpolate.h"
+#include "kdtree.h"
 
 static int compare_points_x(const void* a, const void* b) {
     const RStarPoint* p1 = (const RStarPoint*)a;
@@ -24,7 +26,41 @@ static int compare_points_y(const void* a, const void* b) {
     return 0;
 }
 
-RStarIndex* CreateRStarIndexFromBatch(const RStarPointBatch* batch, const unsigned int startIndex, const unsigned int endIndex, const unsigned int bandIndex, const BulkLoadConfig* config) {
+static unsigned int CalcExactHeightIndex(float height){
+    static const float DEFAULT_MAXIMAL_HEIGHT = (DEFAULT_MINIMAL_HEIGHT + DEFAULT_HEIGHT_COUNT * DEFAULT_HEIGHT_GAP);
+    if (height < DEFAULT_MINIMAL_HEIGHT)
+        return 0;
+    if (height > DEFAULT_MAXIMAL_HEIGHT)
+        return DEFAULT_HEIGHT_COUNT - 1;
+    return (unsigned int)(ceil((height - DEFAULT_MINIMAL_HEIGHT) / DEFAULT_HEIGHT_GAP));
+}
+
+unsigned int CalcHeightIndex(float height, unsigned int* indices){
+    unsigned int exactIndex = CalcExactHeightIndex(height);
+    if (exactIndex >= DEFAULT_HEIGHT_COUNT + 2)
+        return 0;
+    if (exactIndex < 2){ // 0 to exactIndex + 2
+        unsigned int size = exactIndex + 2 + 1;
+        indices = (unsigned int*)malloc(size * sizeof(unsigned int));
+        for (unsigned int i = 0; i < size; i++)
+            indices[i] = i;
+        return size;
+    }
+    else if (exactIndex > DEFAULT_HEIGHT_COUNT - 2){ // exactIndex - 2 to DEFAULT_HEIGHT_COUNT( total DEFAULT_HEIGHT_COUNT + 1 layers)
+        unsigned int size = DEFAULT_HEIGHT_COUNT + 2 - exactIndex + 1;
+        indices = (unsigned int*)malloc(size * sizeof(unsigned int));
+        for (unsigned int i = 0; i < size; i++)
+            indices[i] = exactIndex - 2 + i;
+        return size;
+    }
+    unsigned int size = 5;
+    indices = (unsigned int*)malloc(size * sizeof(unsigned int));
+    for (unsigned int i = 0; i < size; i++)
+        indices[i] = exactIndex - 2 + i;
+    return size;
+}
+
+RStarIndex* CreateRStarIndexFromBatch(const PointBatch* batch, const unsigned int startIndex, const unsigned int endIndex, const unsigned int bandIndex, const BulkLoadConfig* config) {
     if (!batch || !config || batch->capacity == 0 || startIndex >= endIndex) {
         fprintf(stderr, "Invalid batch or config for optimized bulk loading\n");
         return NULL;
@@ -112,7 +148,7 @@ RStarIndex* CreateRStarIndexFromBatch(const RStarPointBatch* batch, const unsign
     return index;
 }
 
-AVLTree* CreateAVLTreeFromBatch(const RStarPointBatch* pointBatch, const unsigned int startIndex, const unsigned int endIndex, const unsigned int bandIndex){
+AVLTree* CreateAVLTreeFromBatch(const PointBatch* pointBatch, const unsigned int startIndex, const unsigned int endIndex, const unsigned int bandIndex){
     if (!pointBatch || pointBatch->capacity == 0 || startIndex >= endIndex)
         return NULL;
     AVLTree* tree = CreateAVLTree();
@@ -133,18 +169,18 @@ void DestroyIndexForest(IndexForest* forest){
                 DestroyRStarIndex(forest->index[bandIndex][treeIndex]);
 
         for (unsigned int treeIndex = 0; treeIndex < forest->KDTreeSize; treeIndex++)
-            if (forest->hindex[bandIndex][treeIndex])
-                DestroyKDTree(forest->hindex[bandIndex][treeIndex]);
+            if (forest->flatindex[bandIndex][treeIndex])
+                DestroyKDTree(forest->flatindex[bandIndex][treeIndex]);
 
         free(forest->index[bandIndex]);
     }
     free(forest);
 }
 
-RStarPointBatch* CreateRStarPointBatch(unsigned int initialCapacity) {
-    RStarPointBatch* batch = (RStarPointBatch*)malloc(sizeof(RStarPointBatch));
+PointBatch* CreateRStarPointBatch(unsigned int initialCapacity) {
+    PointBatch* batch = (PointBatch*)malloc(sizeof(PointBatch));
     if (!batch) {
-        fprintf(stderr, "Failed to allocate memory for RStarPointBatch\n");
+        fprintf(stderr, "Failed to allocate memory for PointBatch\n");
         return NULL;
     }
     batch->points[0] = (RStarPoint*)malloc(initialCapacity * sizeof(RStarPoint));
@@ -158,14 +194,14 @@ RStarPointBatch* CreateRStarPointBatch(unsigned int initialCapacity) {
     return batch;
 }
 
-void DestroyRStarPointBatch(RStarPointBatch* batch) {
+void DestroyRStarPointBatch(PointBatch* batch) {
     if (!batch) return;
     free(batch->points[0]);
     free(batch->points[1]);
     free(batch);
 }
 
-void RStarPointBatch_SortSpatially(RStarPointBatch* batch, const unsigned int bandIndex) {
+void RStarPointBatch_SortSpatially(PointBatch* batch, const unsigned int bandIndex) {
     if (!batch || batch->capacity == 0) return;
     // Sort first by X coordinate (latitude)
     qsort(batch->points[bandIndex], batch->capacity, sizeof(RStarPoint), compare_points_x);
@@ -179,24 +215,24 @@ void RStarPointBatch_SortSpatially(RStarPointBatch* batch, const unsigned int ba
     }
 }
 
-RStarIndex* CreateRStarIndexFromSortedBatch(RStarPointBatch* batch, const unsigned int bandIndex, const BulkLoadConfig* config) {
+RStarIndex* CreateRStarIndexFromSortedBatch(PointBatch* batch, const unsigned int bandIndex, const BulkLoadConfig* config) {
     if (!batch || !config || batch->capacity == 0)
         return NULL;
     RStarPointBatch_SortSpatially(batch, bandIndex);
     return CreateRStarIndexFromBatch(batch, 0, batch->capacity, bandIndex, config);
 }
 
-KDTree* CreateKDTreeFromBatch(KDCalcPoint* points, int count, unsigned int heightIndex) {
+KDTree* CreateKDTreeFromBatch(KDCalcPointClip* clip, unsigned int heightIndex) {
     KDTree* tree = (KDTree*)malloc(sizeof(KDTree));
     if (!tree) return NULL;
 
     tree->heightIndex = heightIndex;
-    tree->root = BuildKDTree(points, count, 0);
-    tree->size = count;
+    tree->size = clip->count;
+    tree->root = BuildKDTree(clip->points, clip->count, 0);
     return tree;
 }
 
-bool CreateRStarForest(const RStarPointBatch* pointBatch, ClipGridResult* finalGrid, IndexForest* forest){
+bool CreateRStarForest(const PointBatch* pointBatch, ClipGridResult* finalGrid, IndexForest* forest){
     bool success = true;
     //const unsigned int clipCount = finalGrid->clipCount;
     const unsigned int clipCount = 1; // for test
@@ -223,10 +259,84 @@ bool CreateRStarForest(const RStarPointBatch* pointBatch, ClipGridResult* finalG
     return success;
 }
 
-bool CreateKDTreeForest(const RStarPointBatch* pointBatch, ClipGridResult* finalGrid, IndexForest* forest){
+bool CreateKDTreeForest(const PointBatch* pointBatch, IndexForest* forest){
+    forest->KDTreeSize = DEFAULT_HEIGHT_COUNT;
+    bool success = true;
+    for (unsigned int bandIndex = 0; bandIndex < 2; bandIndex++){
+        forest->flatindex[bandIndex] = (KDTree**)malloc(DEFAULT_HEIGHT_COUNT * sizeof(KDTree*));
+        KDCalcPointBatch* points = ConstructKDCalcPointFromPointBatch(pointBatch, bandIndex);
+        for (unsigned int heightIndex = 0; heightIndex < DEFAULT_HEIGHT_COUNT; heightIndex++){
+            forest->flatindex[bandIndex][heightIndex] = CreateKDTreeFromBatch(&points->value[heightIndex], heightIndex);
+        }
+        DestroyKDCalcPointBatch(points);
+    }
+    return success;
+}
+
+bool CreateIndexForest(const PointBatch* pointBatch, ClipGridResult* finalGrid, IndexForest* forest){
+    CreateKDTreeForest(pointBatch, finalGrid, forest);
+    CreateRStarForest(pointBatch, finalGrid, forest);
     return true;
 }
 
-bool CreateIndexForest(const RStarPointBatch* pointBatch, ClipGridResult* finalGrid, IndexForest* forest){
-    return true;
+void DestroyKDCalcPointBatch(KDCalcPointBatch* batch){
+    if (!batch) return;
+    for (unsigned int h = 0; h < batch->heightCount; h++){
+        if (batch->value[h].points)
+            free(batch->value[h].points);
+    }
+    if (batch->value)
+        free(batch->value);
+    free(batch);
+}
+
+KDCalcPointBatch* ConstructKDCalcPointFromPointBatch(const PointBatch* pointBatch, unsigned int bandIndex){
+    KDCalcPointBatch* batch = (KDCalcPointBatch*)malloc(sizeof(KDCalcPointBatch));
+    if (!batch) return NULL;
+    batch->heightCount = DEFAULT_HEIGHT_COUNT + 1;
+    batch->value = (KDCalcPointClip*)malloc(batch->heightCount * sizeof(KDCalcPointClip));
+    for (unsigned int h = 0; h < batch->heightCount; h++){        
+        batch->value[h].capacity = DEFAULT_KDTREE_CAPACITY;
+        batch->value[h].count = 0;
+        batch->value[h].points = (KDCalcPoint*)malloc(batch->value[h].capacity * sizeof(KDCalcPoint));
+        if (!batch->value[h].points){
+            fprintf(stderr, "Failed to allocate memory for KDCalcPoint for height %d\n", h);
+            for (unsigned int i = 0; i < h; i++)
+                free(batch->value[i].points);
+            free(batch->value);
+            free(batch);
+            return NULL;
+        }
+    }
+    for (unsigned int i = 0; i < pointBatch->capacity; i++){
+        RStarPoint* point = &pointBatch->points[bandIndex][i];
+        if (point->h == -1) continue;
+        unsigned int *heightIndices = NULL;
+        unsigned int size = CalcHeightIndex(point->h, heightIndices);
+        for (unsigned int j = 0; j < size; j++)
+            InsertKDCalcPoint(&batch->value[heightIndices[j]], point);
+        free(heightIndices);
+    }
+    return batch;
+}
+
+void InsertKDCalcPoint(KDCalcPointClip* clip, const RStarPoint* rStarPoint){
+    if (clip->count >= clip->capacity){
+        clip->capacity *= 2;
+        clip->points = (KDCalcPoint*)realloc(clip->points, clip->capacity * sizeof(KDCalcPoint));
+    }
+    clip->points[clip->count].latitude = rStarPoint->x;
+    clip->points[clip->count].longitude = rStarPoint->y;
+    clip->points[clip->count].id = rStarPoint->id;
+    clip->points[clip->count].lat_sum = rStarPoint->x;
+    clip->points[clip->count].lon_sum = rStarPoint->y;
+    clip->points[clip->count].lat_square_sum = rStarPoint->x * rStarPoint->x;
+    clip->points[clip->count].lon_square_sum = rStarPoint->y * rStarPoint->y;
+    if (clip->count > 0){
+        clip->points[clip->count].lat_sum += clip->points[clip->count - 1].lat_sum;
+        clip->points[clip->count].lon_sum += clip->points[clip->count - 1].lon_sum;
+        clip->points[clip->count].lat_square_sum += clip->points[clip->count - 1].lat_square_sum;
+        clip->points[clip->count].lon_square_sum += clip->points[clip->count - 1].lon_square_sum;
+    }
+    clip->count++;
 }

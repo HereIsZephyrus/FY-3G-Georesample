@@ -13,7 +13,7 @@ void test_readHDF5(void) {
     TEST_MESSAGE("Read HDF5 file successfully");
     GeodeticGrid finalGrid;
     unsigned int initialCapacity = dataset.globalAttribute.scanLineCount * SCAN_ANGLE_COUNT * SCAN_HEIGHT_COUNT;
-    RStarPointBatch* pointBatch = CreateRStarPointBatch(initialCapacity);
+    PointBatch* pointBatch = CreateRStarPointBatch(initialCapacity);
     TEST_ASSERT_TRUE(ProcessDataset(&dataset, &finalGrid, pointBatch));
     TEST_MESSAGE("Process dataset successfully");
     DestroyHDFDataset(&dataset);

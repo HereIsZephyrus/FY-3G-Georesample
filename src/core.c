@@ -4,7 +4,7 @@
 #include "geotransfer.h"
 #include "index.h"
 
-bool IsValidHeightData(const float coordinateHeight, const float elevation, const unsigned int heightIndex, const float clutterFreeBottomIndex){
+static bool IsValidHeightData(const float coordinateHeight, const float elevation, const unsigned int heightIndex, const float clutterFreeBottomIndex){
     static const float DEFAULT_MAXIMAL_HEIGHT = (DEFAULT_MINIMAL_HEIGHT + DEFAULT_HEIGHT_COUNT * DEFAULT_HEIGHT_GAP);
     if (heightIndex >= clutterFreeBottomIndex) return false;
     if (coordinateHeight > DEFAULT_MAXIMAL_HEIGHT) return false;
@@ -12,7 +12,7 @@ bool IsValidHeightData(const float coordinateHeight, const float elevation, cons
     return true;
 }
 
-void CalculateGridData(const GridInfo* sampleGridInfo, GeodeticGrid* geodeticGrid, RStarPointBatch* pointBatch, unsigned int bandIndex, unsigned int lineIndex, unsigned int angleIndex){
+void CalculateGridData(const GridInfo* sampleGridInfo, GeodeticGrid* geodeticGrid, PointBatch* pointBatch, unsigned int bandIndex, unsigned int lineIndex, unsigned int angleIndex){
     /**
     @brief Calculate the interpolation
     @param sampleGridInfo: the sample grid info to calculate the interpolation
@@ -45,7 +45,7 @@ void CalculateGridData(const GridInfo* sampleGridInfo, GeodeticGrid* geodeticGri
     }
 }
 
-bool ProcessDataset(const HDFDataset* dataset, GeodeticGrid* geodeticGrid, RStarPointBatch* pointBatch){
+bool ProcessDataset(const HDFDataset* dataset, GeodeticGrid* geodeticGrid, PointBatch* pointBatch){
     /**
     @brief Construct final grid
     @param dataset: the dataset to construct the final grid
@@ -214,7 +214,7 @@ bool InterpolateClipGridBatch(const RStarPoint* points, RStarIndex* indexTree, c
     return true;
 }
 
-bool InterpolateGrid(const GeodeticGrid* processedGrid, const RStarPointBatch* pointBatch,IndexForest* forest, ClipGridResult* finalGrid){
+bool InterpolateGrid(const GeodeticGrid* processedGrid, const PointBatch* pointBatch,IndexForest* forest, ClipGridResult* finalGrid){
     bool success = true;
     //unsigned int clipCount = finalGrid->clipCount;
     const unsigned int clipCount = 1; // for test
@@ -235,7 +235,7 @@ bool InterpolateGrid(const GeodeticGrid* processedGrid, const RStarPointBatch* p
     return success;
 }
 
-bool InitClipResult(const HDFDataset* dataset, const RStarPointBatch* pointBatch, IndexForest* forest, ClipGridResult* finalGrid){
+bool InitClipResult(const HDFDataset* dataset, const PointBatch* pointBatch, IndexForest* forest, ClipGridResult* finalGrid){
     InitClipGridArray(dataset, DEFAULT_GRID_SIZE, DEFAULT_MINIMAL_HEIGHT, DEFAULT_HEIGHT_GAP, DEFAULT_HEIGHT_COUNT, finalGrid);
     CreateIndexForest(pointBatch, finalGrid, forest);
     return true;
