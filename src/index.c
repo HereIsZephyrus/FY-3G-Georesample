@@ -1,3 +1,4 @@
+#include <stdbool.h>
 #include <string.h>
 #include <math.h>
 #include <float.h>
@@ -274,7 +275,7 @@ bool CreateKDTreeForest(const PointBatch* pointBatch, IndexForest* forest){
 }
 
 bool CreateIndexForest(const PointBatch* pointBatch, ClipGridResult* finalGrid, IndexForest* forest){
-    CreateKDTreeForest(pointBatch, finalGrid, forest);
+    CreateKDTreeForest(pointBatch, forest);
     CreateRStarForest(pointBatch, finalGrid, forest);
     return true;
 }
@@ -339,4 +340,20 @@ void InsertKDCalcPoint(KDCalcPointClip* clip, const RStarPoint* rStarPoint){
         clip->points[clip->count].lon_square_sum += clip->points[clip->count - 1].lon_square_sum;
     }
     clip->count++;
+}
+
+bool ProtentialToInterpolate(double latitude, double longitude, double height, KDTree** flatindexForest){
+    static float maxDis = 0.1; // latitude and longitude max distance
+    unsigned int *indices = NULL;
+    unsigned int size = CalcHeightIndex(height, indices);
+    bool hasProtential = false;
+    for (unsigned int i = 0; i < size; i++){
+        if (!flatindexForest[indices[i]]){
+            fprintf(stderr, "KDTree for height %d is not created\n", indices[i]);
+            return false;
+        }
+        hasProtential |= KDTreeExistWithinDistance(flatindexForest[indices[i]], latitude, longitude, maxDis);
+    }
+    free(indices);
+    return hasProtential;
 }

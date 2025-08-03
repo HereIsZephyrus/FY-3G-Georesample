@@ -106,23 +106,25 @@ bool InterpolateClipGrid(const RStarPoint* points, KDTree** flatindexTree, RStar
     return true;
 }
 
-bool InterpolateClipGridBatch(const RStarPoint* points, RStarIndex* indexTree, const float* valueArray, ClipGrid* clipGrid){
+bool InterpolateClipGridBatch(const RStarPoint* points, RStarIndex* indexTree, KDTree** flatindexForest, const float* valueArray, ClipGrid* clipGrid){
     /**
      * @brief Batch version of InterpolateClipGrid using bulk query APIs for improved efficiency
      * @param points: the point array for coordinate lookup
      * @param indexTree: the R* tree index
+     * @param flatindexForest: the KD tree slide by height index
      * @param valueArray: array of values to interpolate
      * @param clipGrid: the clip grid to interpolate
      * @return true if successful, false otherwise
      */
-    if (!indexTree || !clipGrid || !valueArray) return false;
+    if (!indexTree || !clipGrid || !valueArray || !flatindexForest) return false;
     
-    const unsigned int totalPoints = clipGrid->latitudeCount * clipGrid->longitudeCount * clipGrid->heightCount;
-    if (totalPoints == 0) return true;
+    unsigned int capacity = clipGrid->latitudeCount * clipGrid->longitudeCount * clipGrid->heightCount / 4;
+    unsigned int totalPoints = 0;
+    if (capacity == 0) return false;
     
-    double* queryPoints = (double*)malloc(totalPoints * 3 * sizeof(double));
-    double* queryHeights = (double*)malloc(totalPoints * sizeof(double));
-    if (!queryPoints) {
+    double* queryPoints = (double*)malloc(capacity * 3 * sizeof(double));
+    double* queryHeights = (double*)malloc(capacity * sizeof(double));
+    if (!queryPoints || !queryHeights) {
         fprintf(stderr, "Failed to allocate memory for batch query points\n");
         return false;
     }
@@ -130,12 +132,22 @@ bool InterpolateClipGridBatch(const RStarPoint* points, RStarIndex* indexTree, c
     for (unsigned int b = 0; b < clipGrid->latitudeCount; b++) {
         for (unsigned int l = 0; l < clipGrid->longitudeCount; l++) {
             for (unsigned int h = 0; h < clipGrid->heightCount; h++) {
-                const unsigned int queryIndex = b * clipGrid->longitudeCount * clipGrid->heightCount + l * clipGrid->heightCount + h;
                 const float latitude = clipGrid->minLatitude + b * clipGrid->latitudeGap;
                 const float longitude = clipGrid->minLongitude + l * clipGrid->longitudeGap;
                 const float height = clipGrid->minHeight + h * clipGrid->heightGap;
-                TransferGeodeticToCartesian(latitude, longitude, height, &queryPoints[queryIndex * 3 + 0], &queryPoints[queryIndex * 3 + 1], &queryPoints[queryIndex * 3 + 2]);
-                queryHeights[queryIndex] = height;
+                if (ProtentialToInterpolate(latitude, longitude, height, flatindexForest)){
+                    if (totalPoints >= capacity){
+                        capacity *= 2;
+                        queryPoints = (double*)realloc(queryPoints, capacity * 3 * sizeof(double));
+                        queryHeights = (double*)realloc(queryHeights, capacity * sizeof(double));
+                    }
+                    const unsigned int queryIndex = totalPoints++;
+                    TransferGeodeticToCartesian(latitude, longitude, height, &queryPoints[queryIndex * 3 + 0], &queryPoints[queryIndex * 3 + 1], &queryPoints[queryIndex * 3 + 2]);
+                    queryHeights[queryIndex] = height;
+                }else {
+                    const unsigned int index = b * clipGrid->longitudeCount * clipGrid->heightCount + l * clipGrid->heightCount + h;
+                    clipGrid->value[index] = -999;
+                }
             }
         }
     }
@@ -214,20 +226,15 @@ bool InterpolateClipGridBatch(const RStarPoint* points, RStarIndex* indexTree, c
     return true;
 }
 
-bool InterpolateGrid(const GeodeticGrid* processedGrid, const PointBatch* pointBatch,IndexForest* forest, ClipGridResult* finalGrid){
+bool InterpolateGrid(const GeodeticGrid* processedGrid, const PointBatch* pointBatch, IndexForest* forest, ClipGridResult* finalGrid){
     bool success = true;
     //unsigned int clipCount = finalGrid->clipCount;
     const unsigned int clipCount = 1; // for test
     for (unsigned int bandIndex = 0; bandIndex < 2; bandIndex++)
         //#pragma omp parallel for shared(forest, processedGrid, finalGrid, bandIndex, clipCount) reduction(||:success)
         for (unsigned int clipIndex = 0; clipIndex < clipCount; clipIndex++){
-            if (!InterpolateClipGrid(
-                pointBatch->points[bandIndex], 
-                forest->flatindex[bandIndex], 
-                forest->index[bandIndex][clipIndex], 
-                processedGrid->valueArray[bandIndex], 
-                &finalGrid->clipGrids[bandIndex][clipIndex])){
-            //if (!InterpolateClipGridBatch(pointBatch->points[bandIndex], forest->index[bandIndex][clipIndex], processedGrid->valueArray[bandIndex], &finalGrid->clipGrids[bandIndex][clipIndex])){
+            //if (!InterpolateClipGrid(pointBatch->points[bandIndex], forest->flatindex[bandIndex], forest->index[bandIndex][clipIndex], processedGrid->valueArray[bandIndex], &finalGrid->clipGrids[bandIndex][clipIndex])){
+            if (!InterpolateClipGridBatch(pointBatch->points[bandIndex], forest->index[bandIndex][clipIndex], forest->flatindex[bandIndex], processedGrid->valueArray[bandIndex], &finalGrid->clipGrids[bandIndex][clipIndex])){
                 fprintf(stderr, "Failed to interpolate clip grid for band %d, clip %d\n", bandIndex, clipIndex);
                 success = false;
             }

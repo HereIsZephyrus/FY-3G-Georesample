@@ -29,6 +29,6 @@ void DestroyKDTree(KDTree* tree);
 void DestroyKDNode(KDNode* node);
 bool InsertKDTree(KDTree* tree, float latitude, float longitude, int64_t id);
 KDNode* InsertKDNode(KDNode* node, float latitude, float longitude, int64_t id, int depth);
-double KDTreeSearchNodeWithinDistance(KDNode* node, float queryLat, float queryLon, float distance);
-bool KDTreeExistWithinDistance(KDTree* tree, float queryLat, float queryLon, float distance);
+double KDTreeSearchNodeWithinDistance(const KDNode* node, float queryLat, float queryLon, float distance);
+bool KDTreeExistWithinDistance(const KDTree* tree, float queryLat, float queryLon, float distance);
 #endif // KDTREE_H

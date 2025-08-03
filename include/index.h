@@ -57,4 +57,5 @@ bool CreateRStarForest(const PointBatch* pointBatch, ClipGridResult* finalGrid, 
 bool CreateKDTreeForest(const PointBatch* pointBatch, IndexForest* forest);
 bool CreateIndexForest(const PointBatch* pointBatch, ClipGridResult* finalGrid, IndexForest* forest);
 void DestroyIndexForest(IndexForest* forest);
+bool ProtentialToInterpolate(double latitude, double longitude, double height, KDTree** flatindexForest);
 #endif

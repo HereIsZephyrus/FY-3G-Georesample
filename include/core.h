@@ -10,4 +10,5 @@ void CalculateGridData(const GridInfo* dataset, GeodeticGrid* geodeticGrid, Poin
 bool InterpolateGrid(const GeodeticGrid* processedGrid, const PointBatch* pointBatch, IndexForest* forest, ClipGridResult* finalGrid);
 bool InitClipResult(const HDFDataset* dataset, const PointBatch* pointBatch, IndexForest* forest, ClipGridResult* finalGrid);
 bool InterpolateClipGrid(const RStarPoint* points, KDTree** flatindexTree, RStarIndex* indexTree, const float* valueArray, ClipGrid* clipGrid);
+bool InterpolateClipGridBatch(const RStarPoint* points, RStarIndex* indexTree, KDTree** flatindexForest, const float* valueArray, ClipGrid* clipGrid);
 #endif

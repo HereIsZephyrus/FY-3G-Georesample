@@ -99,7 +99,7 @@ bool InsertKDTree(KDTree* tree, float latitude, float longitude, int64_t id) {
     return false;
 }
 
-double KDTreeSearchNodeWithinDistance(KDNode* node, float queryLat, float queryLon, float distance) {
+double KDTreeSearchNodeWithinDistance(const KDNode* node, float queryLat, float queryLon, float distance) {
     if (!node) return INFINITY;
     
     double distSqr = (node->latitude - queryLat) * (node->latitude - queryLat) + (node->longitude - queryLon) * (node->longitude - queryLon);
@@ -140,7 +140,7 @@ double KDTreeSearchNodeWithinDistance(KDNode* node, float queryLat, float queryL
     return firstSubtreeDist;
 }
 
-bool KDTreeExistWithinDistance(KDTree* tree, float queryLat, float queryLon, float distance) {
+bool KDTreeExistWithinDistance(const KDTree* tree, float queryLat, float queryLon, float distance) {
     if (!tree) return false;
     if (!tree->root) return false;
     double distSqr = KDTreeSearchNodeWithinDistance(tree->root, queryLat, queryLon, distance);
