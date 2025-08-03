@@ -207,3 +207,17 @@ double InterpolateValueIDW(const double queryPoint[3], const float queryHeight, 
     if (validCount == 0 || weightSum == 0.0) return -999;
     return (valueSum / weightSum);
 }
+
+double InterpolateValueIDW_v(const unsigned int neightborCount, const double* distances, const int64_t* ids, const float* valueArray, const float power) {
+    double weightSum = 0.0;
+    double valueSum = 0.0;
+    for (unsigned int i = 0; i < neightborCount; i++){
+        if (distances[i] > 2 * DEFAULT_GRID_SIZE) continue; // skip points too far away
+        if (distances[i] < 100) return valueArray[ids[i]]; // return exact value
+        double weight = 1.0 / pow(distances[i], power);
+        weightSum += weight;
+        valueSum += weight * valueArray[ids[i]];
+    }
+    if (weightSum == 0.0) return -999;
+    return (valueSum / weightSum);
+}

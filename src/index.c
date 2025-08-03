@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include "data.h"
 #include "index.h"
 #include "interpolate.h"
 #include "kdtree.h"
@@ -36,28 +37,28 @@ static unsigned int CalcExactHeightIndex(float height){
     return (unsigned int)(ceil((height - DEFAULT_MINIMAL_HEIGHT) / DEFAULT_HEIGHT_GAP));
 }
 
-unsigned int CalcHeightIndex(float height, unsigned int* indices){
+unsigned int CalcHeightIndex(float height, unsigned int** indices){
     unsigned int exactIndex = CalcExactHeightIndex(height);
     if (exactIndex >= DEFAULT_HEIGHT_COUNT + 2)
         return 0;
     if (exactIndex < 2){ // 0 to exactIndex + 2
         unsigned int size = exactIndex + 2 + 1;
-        indices = (unsigned int*)malloc(size * sizeof(unsigned int));
+        *indices = (unsigned int*)malloc(size * sizeof(unsigned int));
         for (unsigned int i = 0; i < size; i++)
-            indices[i] = i;
+            (*indices)[i] = i;
         return size;
     }
     else if (exactIndex > DEFAULT_HEIGHT_COUNT - 2){ // exactIndex - 2 to DEFAULT_HEIGHT_COUNT( total DEFAULT_HEIGHT_COUNT + 1 layers)
         unsigned int size = DEFAULT_HEIGHT_COUNT + 2 - exactIndex + 1;
-        indices = (unsigned int*)malloc(size * sizeof(unsigned int));
+        *indices = (unsigned int*)malloc(size * sizeof(unsigned int));
         for (unsigned int i = 0; i < size; i++)
-            indices[i] = exactIndex - 2 + i;
+            (*indices)[i] = exactIndex - 2 + i;
         return size;
     }
     unsigned int size = 5;
-    indices = (unsigned int*)malloc(size * sizeof(unsigned int));
+    *indices = (unsigned int*)malloc(size * sizeof(unsigned int));
     for (unsigned int i = 0; i < size; i++)
-        indices[i] = exactIndex - 2 + i;
+        (*indices)[i] = exactIndex - 2 + i;
     return size;
 }
 
@@ -174,6 +175,7 @@ void DestroyIndexForest(IndexForest* forest){
                 DestroyKDTree(forest->flatindex[bandIndex][treeIndex]);
 
         free(forest->index[bandIndex]);
+        free(forest->flatindex[bandIndex]);
     }
     free(forest);
 }
@@ -235,8 +237,7 @@ KDTree* CreateKDTreeFromBatch(KDCalcPointClip* clip, unsigned int heightIndex) {
 
 bool CreateRStarForest(const PointBatch* pointBatch, ClipGridResult* finalGrid, IndexForest* forest){
     bool success = true;
-    //const unsigned int clipCount = finalGrid->clipCount;
-    const unsigned int clipCount = 1; // for test
+    const unsigned int clipCount = finalGrid->clipCount;
     forest->RStarForestSize = clipCount;
     for (unsigned int bandIndex = 0; bandIndex < 2; bandIndex++){
         forest->index[bandIndex] = (RStarIndex**)malloc(clipCount * sizeof(RStarIndex*));
@@ -245,7 +246,7 @@ bool CreateRStarForest(const PointBatch* pointBatch, ClipGridResult* finalGrid, 
             success = false;
         }
         BulkLoadConfig* config = CreateDefaultBulkLoadConfig();
-        //#pragma omp parallel for shared(pointBatch, finalGrid, bandIndex, clipCount, config) reduction(||:success)
+        #pragma omp parallel for shared(pointBatch, finalGrid, bandIndex, clipCount, config) reduction(||:success)
         for (unsigned int clipIndex = 0; clipIndex < clipCount; clipIndex++){
             const unsigned int startIndex = finalGrid->clipGrids[bandIndex][clipIndex].leftLineIndex * SCAN_ANGLE_COUNT * SCAN_HEIGHT_COUNT;
             const unsigned int endIndex = (finalGrid->clipGrids[bandIndex][clipIndex].rightLineIndex + 1) * SCAN_ANGLE_COUNT * SCAN_HEIGHT_COUNT;
@@ -260,22 +261,27 @@ bool CreateRStarForest(const PointBatch* pointBatch, ClipGridResult* finalGrid, 
     return success;
 }
 
-bool CreateKDTreeForest(const PointBatch* pointBatch, IndexForest* forest){
-    forest->KDTreeSize = DEFAULT_HEIGHT_COUNT;
+bool CreateKDTreeForest(const GeodeticGrid* geodeticGrid, IndexForest* forest){
+    forest->KDTreeSize = DEFAULT_HEIGHT_COUNT + 1;
     bool success = true;
     for (unsigned int bandIndex = 0; bandIndex < 2; bandIndex++){
-        forest->flatindex[bandIndex] = (KDTree**)malloc(DEFAULT_HEIGHT_COUNT * sizeof(KDTree*));
-        KDCalcPointBatch* points = ConstructKDCalcPointFromPointBatch(pointBatch, bandIndex);
-        for (unsigned int heightIndex = 0; heightIndex < DEFAULT_HEIGHT_COUNT; heightIndex++){
+        forest->flatindex[bandIndex] = (KDTree**)malloc(forest->KDTreeSize * sizeof(KDTree*));
+        KDCalcPointBatch* points = ConstructKDCalcPointFromPointBatch(geodeticGrid, bandIndex);
+        #pragma omp parallel for shared(points, forest, bandIndex) reduction(||:success)
+        for (unsigned int heightIndex = 0; heightIndex < forest->KDTreeSize; heightIndex++){
             forest->flatindex[bandIndex][heightIndex] = CreateKDTreeFromBatch(&points->value[heightIndex], heightIndex);
+            if (!forest->flatindex[bandIndex][heightIndex]){
+                fprintf(stderr, "Failed to create KDTree for band %d, height %d\n", bandIndex, heightIndex);
+                success = false;
+            }
         }
         DestroyKDCalcPointBatch(points);
     }
     return success;
 }
 
-bool CreateIndexForest(const PointBatch* pointBatch, ClipGridResult* finalGrid, IndexForest* forest){
-    CreateKDTreeForest(pointBatch, forest);
+bool CreateIndexForest(const GeodeticGrid* geodeticGrid, const PointBatch* pointBatch, ClipGridResult* finalGrid, IndexForest* forest){
+    CreateKDTreeForest(geodeticGrid, forest);
     CreateRStarForest(pointBatch, finalGrid, forest);
     return true;
 }
@@ -291,7 +297,7 @@ void DestroyKDCalcPointBatch(KDCalcPointBatch* batch){
     free(batch);
 }
 
-KDCalcPointBatch* ConstructKDCalcPointFromPointBatch(const PointBatch* pointBatch, unsigned int bandIndex){
+KDCalcPointBatch* ConstructKDCalcPointFromPointBatch(const GeodeticGrid* geodeticGrid, unsigned int bandIndex){
     KDCalcPointBatch* batch = (KDCalcPointBatch*)malloc(sizeof(KDCalcPointBatch));
     if (!batch) return NULL;
     batch->heightCount = DEFAULT_HEIGHT_COUNT + 1;
@@ -309,30 +315,33 @@ KDCalcPointBatch* ConstructKDCalcPointFromPointBatch(const PointBatch* pointBatc
             return NULL;
         }
     }
-    for (unsigned int i = 0; i < pointBatch->capacity; i++){
-        RStarPoint* point = &pointBatch->points[bandIndex][i];
-        if (point->h == -1) continue;
+    unsigned int capacity = geodeticGrid->lineCount * SCAN_ANGLE_COUNT * geodeticGrid->heightCount;
+    for (unsigned int i = 0; i < capacity; i++){
+        const float latitude = geodeticGrid->latitudeArray[bandIndex][i];
+        const float longitude = geodeticGrid->longitudeArray[bandIndex][i];
+        const float height = geodeticGrid->elevationArray[bandIndex][i];
+        if (!geodeticGrid->validArray[bandIndex][i]) continue;
         unsigned int *heightIndices = NULL;
-        unsigned int size = CalcHeightIndex(point->h, heightIndices);
+        unsigned int size = CalcHeightIndex(height, &heightIndices);
         for (unsigned int j = 0; j < size; j++)
-            InsertKDCalcPoint(&batch->value[heightIndices[j]], point);
+            InsertKDCalcPoint(&batch->value[heightIndices[j]], latitude, longitude, i);
         free(heightIndices);
     }
     return batch;
 }
 
-void InsertKDCalcPoint(KDCalcPointClip* clip, const RStarPoint* rStarPoint){
+void InsertKDCalcPoint(KDCalcPointClip* clip, const float latitude, const float longitude, const unsigned int index){
     if (clip->count >= clip->capacity){
         clip->capacity *= 2;
         clip->points = (KDCalcPoint*)realloc(clip->points, clip->capacity * sizeof(KDCalcPoint));
     }
-    clip->points[clip->count].latitude = rStarPoint->x;
-    clip->points[clip->count].longitude = rStarPoint->y;
-    clip->points[clip->count].id = rStarPoint->id;
-    clip->points[clip->count].lat_sum = rStarPoint->x;
-    clip->points[clip->count].lon_sum = rStarPoint->y;
-    clip->points[clip->count].lat_square_sum = rStarPoint->x * rStarPoint->x;
-    clip->points[clip->count].lon_square_sum = rStarPoint->y * rStarPoint->y;
+    clip->points[clip->count].latitude = latitude;
+    clip->points[clip->count].longitude = longitude;
+    clip->points[clip->count].id = index;
+    clip->points[clip->count].lat_sum = latitude;
+    clip->points[clip->count].lon_sum = longitude;
+    clip->points[clip->count].lat_square_sum = latitude * latitude;
+    clip->points[clip->count].lon_square_sum = longitude * longitude;
     if (clip->count > 0){
         clip->points[clip->count].lat_sum += clip->points[clip->count - 1].lat_sum;
         clip->points[clip->count].lon_sum += clip->points[clip->count - 1].lon_sum;
@@ -343,9 +352,9 @@ void InsertKDCalcPoint(KDCalcPointClip* clip, const RStarPoint* rStarPoint){
 }
 
 bool ProtentialToInterpolate(double latitude, double longitude, double height, KDTree** flatindexForest){
-    static float maxDis = 0.1; // latitude and longitude max distance
+    static float maxDis = 0.08; // latitude and longitude max distance
     unsigned int *indices = NULL;
-    unsigned int size = CalcHeightIndex(height, indices);
+    unsigned int size = CalcHeightIndex(height, &indices);
     bool hasProtential = false;
     for (unsigned int i = 0; i < size; i++){
         if (!flatindexForest[indices[i]]){

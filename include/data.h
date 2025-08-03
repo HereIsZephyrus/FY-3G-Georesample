@@ -35,6 +35,7 @@ typedef struct {
 typedef struct {
     unsigned int lineCount, heightCount;
     float *latitudeArray[2], *longitudeArray[2], *elevationArray[2], *valueArray[2]; // [bandIndex][[lineCount][angleCount][heightCount]]
+    bool *validArray[2]; // [bandIndex][[lineCount][angleCount][heightCount]]
 } GeodeticGrid;
 
 typedef struct {

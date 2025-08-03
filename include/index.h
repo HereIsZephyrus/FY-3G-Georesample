@@ -1,7 +1,7 @@
 #ifndef INDEX_H
 #define INDEX_H
 #define DEFAULT_K_NEIGHBOR 5
-#define DEFAULT_KDTREE_CAPACITY 1000000
+#define DEFAULT_KDTREE_CAPACITY 100000
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -35,11 +35,11 @@ typedef struct {
 PointBatch* CreateRStarPointBatch(unsigned int initialCapacity);
 void DestroyRStarPointBatch(PointBatch* batch);
 void DestroyKDCalcPointBatch(KDCalcPointBatch* batch);
-KDCalcPointBatch* ConstructKDCalcPointFromPointBatch(const PointBatch* pointBatch, unsigned int bandIndex);
+KDCalcPointBatch* ConstructKDCalcPointFromPointBatch(const GeodeticGrid* geodeticGrid, unsigned int bandIndex);
 RStarIndex* CreateRStarIndexFromSortedBatch(PointBatch* batch, const unsigned int bandIndex, const BulkLoadConfig* config);
 void RStarPointBatch_SortSpatially(PointBatch* batch, const unsigned int bandIndex);
-unsigned int CalcHeightIndex(float height, unsigned int* indices);
-void InsertKDCalcPoint(KDCalcPointClip* point, const RStarPoint* rStarPoint);
+unsigned int CalcHeightIndex(float height, unsigned int** indices);
+void InsertKDCalcPoint(KDCalcPointClip* point, const float latitude, const float longitude, const unsigned int index);
 
 PointBatchAtHeight* CreatePointBatchAtHeight(unsigned int initialCapacity);
 void DestroyPointBatchAtHeight(PointBatchAtHeight* batch);
@@ -54,8 +54,8 @@ RStarIndex* CreateRStarIndexFromBatch(const PointBatch* batch, const unsigned in
 AVLTree* CreateAVLTreeFromBatch(const PointBatch* pointBatch, const unsigned int startIndex, const unsigned int endIndex, const unsigned int bandIndex);
 KDTree* CreateKDTreeFromBatch(KDCalcPointClip* clip, unsigned int heightIndex);
 bool CreateRStarForest(const PointBatch* pointBatch, ClipGridResult* finalGrid, IndexForest* forest);
-bool CreateKDTreeForest(const PointBatch* pointBatch, IndexForest* forest);
-bool CreateIndexForest(const PointBatch* pointBatch, ClipGridResult* finalGrid, IndexForest* forest);
+bool CreateKDTreeForest(const GeodeticGrid* geodeticGrid, IndexForest* forest);
+bool CreateIndexForest(const GeodeticGrid* geodeticGrid, const PointBatch* pointBatch, ClipGridResult* finalGrid, IndexForest* forest);
 void DestroyIndexForest(IndexForest* forest);
 bool ProtentialToInterpolate(double latitude, double longitude, double height, KDTree** flatindexForest);
 #endif

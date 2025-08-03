@@ -31,6 +31,7 @@ void DestroyFinalGrid(GeodeticGrid* finalGrid){
         free(finalGrid->longitudeArray[bandIndex]);
         free(finalGrid->elevationArray[bandIndex]);
         free(finalGrid->valueArray[bandIndex]);
+        free(finalGrid->validArray[bandIndex]);
     }
 }
 
@@ -75,10 +76,12 @@ bool InitGeodeticGrid(GeodeticGrid* finalGrid, const int lineCount, const int he
         finalGrid->longitudeArray[bandIndex] = (float*)malloc(memSize);
         finalGrid->elevationArray[bandIndex] = (float*)malloc(memSize);
         finalGrid->valueArray[bandIndex] = (float*)malloc(memSize);
-        if (!finalGrid->latitudeArray[bandIndex] || !finalGrid->longitudeArray[bandIndex] || !finalGrid->elevationArray[bandIndex] || !finalGrid->valueArray[bandIndex]){
+        finalGrid->validArray[bandIndex] = (bool*)malloc(memSize);
+        if (!finalGrid->latitudeArray[bandIndex] || !finalGrid->longitudeArray[bandIndex] || !finalGrid->elevationArray[bandIndex] || !finalGrid->valueArray[bandIndex] || !finalGrid->validArray[bandIndex]){
             fprintf(stderr, "Failed to allocate memory for latitudeArray, longitudeArray, elevationArray or valueArray\n");
             return false;
         }
+        memset(finalGrid->validArray[bandIndex], true, memSize);
     }
     return true;
 }
