@@ -14,7 +14,7 @@ double ComputeN(const double latitude) {
 
 double ComputeS(const double t1, const double t2, const double t3, const double t4, const double e, const double r) {
     /**
-     * @brief compute s
+     * @brief compute s, see readme
      * @param t1, t2, t3, t4: intermediate variables
      * @param e: eccentricity
      * @param r: radius

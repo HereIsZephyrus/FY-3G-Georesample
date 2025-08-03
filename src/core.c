@@ -4,11 +4,11 @@
 #include "interpolate.h"
 #include "geotransfer.h"
 #include "index.h"
+#include "config.h"
 
 static bool IsValidHeightData(const float coordinateHeight, const float elevation, const unsigned int heightIndex, const float clutterFreeBottomIndex){
-    static const float DEFAULT_MAXIMAL_HEIGHT = (DEFAULT_MINIMAL_HEIGHT + DEFAULT_HEIGHT_COUNT * DEFAULT_HEIGHT_GAP);
     if (heightIndex >= clutterFreeBottomIndex) return false;
-    if (coordinateHeight > DEFAULT_MAXIMAL_HEIGHT) return false;
+    if (coordinateHeight > g_config->maximal_height) return false;
     if (coordinateHeight < elevation) return false;
     return true;
 }
@@ -52,18 +52,18 @@ void CalculateGridData(const GridInfo* sampleGridInfo, GeodeticGrid* geodeticGri
 
 bool ProcessDataset(const HDFDataset* dataset, GeodeticGrid* geodeticGrid, PointBatch* pointBatch){
     /**
-    @brief Construct final grid
+    @brief Read the raw data and process it into grids
     @param dataset: the dataset to construct the final grid
-    @param geodeticGrid: the final grid to store the data
-    @param pointBatch: the point batch to store the data
+    @param geodeticGrid: the grid to store the processed raw data
+    @param pointBatch: the point batch to store the point data for further batch utilization
     @return true if successful, false otherwise
     */
     if (!InitGeodeticGrid(geodeticGrid, dataset->globalAttribute.scanLineCount, SCAN_HEIGHT_COUNT)){
         fprintf(stderr, "Failed to initialize final grid\n");
         return false;
     }
+    #pragma omp parallel for shared(dataset, geodeticGrid, pointBatch) collapse(2)
     for (int bandIndex = 0; bandIndex < 2; bandIndex++){
-        #pragma omp parallel for shared(dataset, geodeticGrid, bandIndex, pointBatch)
         for (unsigned int lineIndex = 0; lineIndex < geodeticGrid->lineCount; lineIndex++)
             for (unsigned int angleIndex = 0; angleIndex < SCAN_ANGLE_COUNT; angleIndex++){
                 CalculateGridData( &dataset->infoArray[bandIndex][lineIndex][angleIndex], 
@@ -75,12 +75,13 @@ bool ProcessDataset(const HDFDataset* dataset, GeodeticGrid* geodeticGrid, Point
 
 bool InterpolateClipGrid(const RStarPoint* points, KDTree** flatindexForest, RStarIndex* indexTree, const float* valueArray, ClipGrid* clipGrid){
     /**
-    @brief Interpolate the clip grid
+    @brief Interpolate a clipped grid
     @param points: the points to interpolate
     @param flatindexForest: the KD tree slide by height index
     @param indexTree: the R* tree index
     @param valueArray: the value array
-    @param clipGrid: the clip grid
+    @param clipGrid: the clip grid to interpolate
+    @return true if successful, false otherwise
     */
     if (!indexTree || !flatindexForest){
         fprintf(stderr, "Failed to interpolate clip grid, index tree or flatindex tree is NULL\n");
@@ -96,7 +97,7 @@ bool InterpolateClipGrid(const RStarPoint* points, KDTree** flatindexForest, RSt
                 if (ProtentialToInterpolate(latitude, longitude, height, flatindexForest)){
                     double queryPoint[3];
                     TransferGeodeticToCartesian(latitude, longitude, height, &queryPoint[0], &queryPoint[1], &queryPoint[2]);
-                    SpatialQueryResult* result = RStarIndex_NearestNeighborQuery(indexTree, queryPoint, DEFAULT_K_NEIGHBOR);
+                    SpatialQueryResult* result = RStarIndex_NearestNeighborQuery(indexTree, queryPoint, g_config->k_neighbor);
                     FillQueryPointCoordinates(points, result->count, result);
                     if (!result){
                         fprintf(stderr, "Failed to query nearest neighbor for clip grid %d, %d, %d\n", b, l, h);
@@ -159,8 +160,8 @@ bool InterpolateClipGridBatch(RStarIndex* indexTree, KDTree** flatindexForest, c
         }
     }
     
-    int64_t* resultIds = (int64_t*)malloc(totalPoints * DEFAULT_K_NEIGHBOR * sizeof(int64_t));
-    double* resultDistances = (double*)malloc(totalPoints * DEFAULT_K_NEIGHBOR * sizeof(double));
+    int64_t* resultIds = (int64_t*)malloc(totalPoints * g_config->k_neighbor * sizeof(int64_t));
+    double* resultDistances = (double*)malloc(totalPoints * g_config->k_neighbor * sizeof(double));
     uint64_t* resultCounts = (uint64_t*)malloc(totalPoints * sizeof(uint64_t));
     
     if (!resultIds || !resultDistances || !resultCounts) {
@@ -176,10 +177,10 @@ bool InterpolateClipGridBatch(RStarIndex* indexTree, KDTree** flatindexForest, c
     // Perform batch nearest neighbor query using the new bulk API from PR #268
     int64_t actualProcessed = 0;
     RTError result = Index_NearestNeighbors_id_v(indexTree->spatialIndex,
-                                                 DEFAULT_K_NEIGHBOR,    // knn: number of nearest neighbors to find
+                                                 g_config->k_neighbor,    // knn: number of nearest neighbors to find
                                                  totalPoints,           // n: number of query points
                                                  3,                     // d: dimension (latitude, longitude, height)
-                                                 totalPoints * DEFAULT_K_NEIGHBOR, // idsz: total size of ids array
+                                                 totalPoints * g_config->k_neighbor, // idsz: total size of ids array
                                                  3,                     // d_i_stri: stride between query points
                                                  1,                     // d_j_stri: stride between dimensions
                                                  queryPoints,           // mins: query point coordinates
@@ -202,10 +203,12 @@ bool InterpolateClipGridBatch(RStarIndex* indexTree, KDTree** flatindexForest, c
     if (actualProcessed != totalPoints)
         fprintf(stderr, "Warning: Only %ld out of %u queries were processed in batch\n", actualProcessed, totalPoints);
         
+    unsigned int resultIndex = 0;
     for (unsigned int i = 0; i < totalPoints; i++){
         const unsigned int count = resultCounts[i];
         const unsigned int index = queryIDs[i];
-        clipGrid->value[index] = (float)InterpolateValueIDW_v(count, resultDistances, resultIds, valueArray, 2.0f);
+        clipGrid->value[index] = (float)InterpolateValueIDW_v(count, resultDistances + resultIndex, resultIds + resultIndex, valueArray, 2.0f);
+        resultIndex += count;
     }
     
     if (queryPoints) free(queryPoints);
@@ -218,14 +221,32 @@ bool InterpolateClipGridBatch(RStarIndex* indexTree, KDTree** flatindexForest, c
     return true;
 }
 
+static unsigned int GetOrder(unsigned int index, unsigned int total){
+    // to process at order 0, n-1, 1, n-2, 2, n-3, ...
+    unsigned int order = 0;
+    if (index & 1) // odd
+        order = total - 1 - index / 2;
+    else
+        order = index / 2;
+    return order;
+}
+
 bool InterpolateGrid(const GeodeticGrid* processedGrid, IndexForest* forest, ClipGridResult* finalGrid){
+    /**
+    @brief Interpolate the grid
+    @param processedGrid: the processed grid
+    @param forest: the index forest
+    @param finalGrid: the final grid
+    @return true if successful, false otherwise
+    */
     bool success = true;
     unsigned int clipCount = finalGrid->clipCount;
+    #pragma omp parallel for shared(forest, processedGrid, finalGrid, clipCount) reduction(||:success) collapse(2) schedule(dynamic)
     for (unsigned int bandIndex = 0; bandIndex < 2; bandIndex++)
-        #pragma omp parallel for shared(forest, processedGrid, finalGrid, bandIndex, clipCount) reduction(||:success)
         for (unsigned int clipIndex = 0; clipIndex < clipCount; clipIndex++){
-            if (!InterpolateClipGridBatch(forest->index[bandIndex][clipIndex], forest->flatindex[bandIndex], processedGrid->valueArray[bandIndex], &finalGrid->clipGrids[bandIndex][clipIndex])){
-                fprintf(stderr, "Failed to interpolate clip grid for band %d, clip %d\n", bandIndex, clipIndex);
+            const unsigned int order = GetOrder(clipIndex, clipCount);
+            if (!InterpolateClipGridBatch(forest->index[bandIndex][order], forest->flatindex[bandIndex], processedGrid->valueArray[bandIndex], &finalGrid->clipGrids[bandIndex][order])){
+                fprintf(stderr, "Failed to interpolate clip grid for band %d, clip %d\n", bandIndex, order);
                 success = false;
             }
         }
@@ -233,7 +254,7 @@ bool InterpolateGrid(const GeodeticGrid* processedGrid, IndexForest* forest, Cli
 }
 
 bool InitClipResult(const HDFDataset* dataset, const GeodeticGrid* geodeticGrid, const PointBatch* pointBatch, IndexForest* forest, ClipGridResult* finalGrid){
-    InitClipGridArray(dataset, DEFAULT_GRID_SIZE, DEFAULT_MINIMAL_HEIGHT, DEFAULT_HEIGHT_GAP, DEFAULT_HEIGHT_COUNT, finalGrid);
+    InitClipGridArray(dataset, g_config->grid_size, g_config->minimal_height, g_config->height_gap, g_config->height_count, finalGrid);
     CreateIndexForest(geodeticGrid, pointBatch, finalGrid, forest);
     return true;
 }

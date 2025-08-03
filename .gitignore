@@ -58,6 +58,7 @@ dkms.conf
 .cache/
 build/
 .DS_Store
+.vscode/
 
 # hdf5 files
 *.h5
@@ -65,3 +66,4 @@ build/
 *.hdf
 *.h5
 *.HDF
+*.config

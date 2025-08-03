@@ -27,11 +27,16 @@ void DestroyHDFDataset(HDFDataset* dataset){
 void DestroyGeodeticGrid(GeodeticGrid* finalGrid){
     if (!finalGrid) return;
     for (int bandIndex = 0; bandIndex < 2; bandIndex++){
-        free(finalGrid->latitudeArray[bandIndex]);
-        free(finalGrid->longitudeArray[bandIndex]);
-        free(finalGrid->elevationArray[bandIndex]);
-        free(finalGrid->valueArray[bandIndex]);
-        free(finalGrid->validArray[bandIndex]);
+        if (finalGrid->latitudeArray[bandIndex])
+            free(finalGrid->latitudeArray[bandIndex]);
+        if (finalGrid->longitudeArray[bandIndex])
+            free(finalGrid->longitudeArray[bandIndex]);
+        if (finalGrid->elevationArray[bandIndex])
+            free(finalGrid->elevationArray[bandIndex]);
+        if (finalGrid->valueArray[bandIndex])
+            free(finalGrid->valueArray[bandIndex]);
+        if (finalGrid->validArray[bandIndex])
+            free(finalGrid->validArray[bandIndex]);
     }
 }
 

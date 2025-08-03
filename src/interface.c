@@ -1,4 +1,5 @@
 #include "interface.h"
+#include "config.h"
 #include "data.h"
 #include <H5Ipublic.h>
 #include <H5Tpublic.h>
@@ -6,6 +7,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <omp.h>
+
+struct Config *g_config = NULL;
 
 char* ConstructPath(const char* pathNames[], const int pathLength){
     /**
@@ -375,7 +378,77 @@ bool ReadBand(hid_t fileID, const char* bandName, HDFGlobalAttribute* globalAttr
     return success;
 }
 
-bool WriteHDF5(const char* filename, const GeodeticGrid* dataset, const HDFGlobalAttribute* globalAttribute){
+bool WriteGlobalAttribute(hid_t fileID, const HDFGlobalAttribute* globalAttribute){
+    /**
+    @brief Write global attribute
+    @param fileID: the file ID
+    @param globalAttribute: the global attribute
+    @return true if successful, false otherwise
+    */
+    bool success = true;
+    //write global attribute
+    const char* orbitDirection = globalAttribute->ascending ? "A" : "D";
+    hid_t attrDataspaceID = H5Screate(H5S_SCALAR);
+    if (attrDataspaceID < 0){
+        fprintf(stderr, "Failed to create dataspace: %s\n", "Scan_Lines");
+        success = false;
+    }
+    hid_t scanLineCountID = H5Acreate(fileID, "Scan_Lines", H5T_NATIVE_INT, attrDataspaceID, H5P_DEFAULT, H5P_DEFAULT);
+    hid_t strType = H5Tcopy(H5T_C_S1);
+    H5Tset_size(strType, 20);
+    if (scanLineCountID < 0){
+        fprintf(stderr, "Failed to create dataset: %s\n", "scanLineCount");
+        success = false;
+    }
+    hid_t startDateTimeID = H5Acreate(fileID, "Observing_Beginning_DateTime", strType, attrDataspaceID, H5P_DEFAULT, H5P_DEFAULT);
+    if (startDateTimeID < 0){
+        fprintf(stderr, "Failed to create dataset: %s\n", "startDateTime");
+        success = false;
+    }
+    hid_t endDateTimeID = H5Acreate(fileID, "Observing_Ending_DateTime", strType, attrDataspaceID, H5P_DEFAULT, H5P_DEFAULT);
+    if (endDateTimeID < 0){
+        fprintf(stderr, "Failed to create dataset: %s\n", "endDateTime");
+        success = false;
+    }
+    hid_t orbitDirectionID = H5Acreate(fileID, "Orbit_Direction", H5T_NATIVE_CHAR, attrDataspaceID, H5P_DEFAULT, H5P_DEFAULT);
+    if (orbitDirectionID < 0){
+        fprintf(stderr, "Failed to create dataset: %s\n", "orbitDirection");
+        success = false;
+    }
+    herr_t status = H5Awrite(scanLineCountID, H5T_NATIVE_INT, &globalAttribute->scanLineCount);
+    if (status < 0){
+        fprintf(stderr, "Failed to write dataset: %s\n", "scanLineCount");
+        success = false;
+    }
+    char* startDateTimeString = ConstructDateTimeString(&globalAttribute->startDateTime);
+    status = H5Awrite(startDateTimeID, strType, startDateTimeString);
+    free(startDateTimeString);
+    if (status < 0){
+        fprintf(stderr, "Failed to write dataset: %s\n", "startDateTime");
+        success = false;
+    }
+    char* endDateTimeString = ConstructDateTimeString(&globalAttribute->endDateTime);
+    status = H5Awrite(endDateTimeID, strType, endDateTimeString);
+    free(endDateTimeString);
+    if (status < 0){
+        fprintf(stderr, "Failed to write dataset: %s\n", "endDateTime");
+        success = false;
+    }
+    status = H5Awrite(orbitDirectionID, H5T_NATIVE_CHAR, orbitDirection);
+    if (status < 0){
+        fprintf(stderr, "Failed to write dataset: %s\n", "orbitDirection");
+        success = false;
+    }
+    H5Tclose(strType);
+    H5Aclose(scanLineCountID);
+    H5Aclose(startDateTimeID);
+    H5Aclose(endDateTimeID);
+    H5Aclose(orbitDirectionID);
+    H5Sclose(attrDataspaceID);
+    return success;
+}
+
+bool WriteTotalGeodetic(const char* filename, const GeodeticGrid* dataset, const HDFGlobalAttribute* globalAttribute){
     /**
     @brief Write HDF5 file
     @param filename: the name of the HDF5 file
@@ -446,48 +519,199 @@ bool WriteHDF5(const char* filename, const GeodeticGrid* dataset, const HDFGloba
             return false;
     }
 
-    //write global attribute
-    const char* orbitDirection = globalAttribute->ascending ? "A" : "D";
-    hid_t attrDataspaceID = H5Screate(H5S_SCALAR);
-    if (attrDataspaceID < 0){
-        fprintf(stderr, "Failed to create dataspace: %s\n", "Scan_Lines");
+    if (!WriteGlobalAttribute(fileID, globalAttribute)){
+        fprintf(stderr, "Failed to write global attribute\n");
         H5Fclose(fileID);
         return false;
     }
-    hid_t scanLineCountID = H5Acreate(fileID, "Scan_Lines", H5T_NATIVE_INT, attrDataspaceID, H5P_DEFAULT, H5P_DEFAULT);
-    hid_t strType = H5Tcopy(H5T_C_S1);
-    H5Tset_size(strType, 20);
-    if (scanLineCountID < 0)
-        fprintf(stderr, "Failed to create dataset: %s\n", "scanLineCount");
-    hid_t startDateTimeID = H5Acreate(fileID, "Observing_Beginning_DateTime", strType, attrDataspaceID, H5P_DEFAULT, H5P_DEFAULT);
-    if (startDateTimeID < 0)
-        fprintf(stderr, "Failed to create dataset: %s\n", "startDateTime");
-    hid_t endDateTimeID = H5Acreate(fileID, "Observing_Ending_DateTime", strType, attrDataspaceID, H5P_DEFAULT, H5P_DEFAULT);
-    if (endDateTimeID < 0)
-        fprintf(stderr, "Failed to create dataset: %s\n", "endDateTime");
-    hid_t orbitDirectionID = H5Acreate(fileID, "Orbit_Direction", H5T_NATIVE_CHAR, attrDataspaceID, H5P_DEFAULT, H5P_DEFAULT);
-    if (orbitDirectionID < 0)
-        fprintf(stderr, "Failed to create dataset: %s\n", "orbitDirection");
-    herr_t status = H5Awrite(scanLineCountID, H5T_NATIVE_INT, &globalAttribute->scanLineCount);
-    if (status < 0)
-        fprintf(stderr, "Failed to write dataset: %s\n", "scanLineCount");
-    status = H5Awrite(startDateTimeID, strType, ConstructDateTimeString(&globalAttribute->startDateTime));
-    if (status < 0)
-        fprintf(stderr, "Failed to write dataset: %s\n", "startDateTime");
-    status = H5Awrite(endDateTimeID, strType, ConstructDateTimeString(&globalAttribute->endDateTime));
-    if (status < 0)
-        fprintf(stderr, "Failed to write dataset: %s\n", "endDateTime");
-    status = H5Awrite(orbitDirectionID, H5T_NATIVE_CHAR, orbitDirection);
-    if (status < 0)
-        fprintf(stderr, "Failed to write dataset: %s\n", "orbitDirection");
-    H5Tclose(strType);
-    H5Aclose(scanLineCountID);
-    H5Aclose(startDateTimeID);
-    H5Aclose(endDateTimeID);
-    H5Aclose(orbitDirectionID);
-    H5Sclose(attrDataspaceID);
     H5Fclose(fileID);
     return true;
+}
+
+bool WriteClipResult(const char* filename, const ClipGridResult* clipResult){
+    /**
+    @brief Write clip result
+    @param filename: the name of the HDF5 file
+    @param clipResult: the clip result
+    @return true if successful, false otherwise
+    */
+    hid_t fileID = H5Fcreate(filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (fileID < 0){
+        fprintf(stderr, "Failed to create file: %s\n", filename);   
+        return false;
+    }
+
+    bool success = true;
+    for (unsigned int bandIndex = 0; bandIndex < 2; bandIndex++){
+        const char* bandName = BAND_NAMES[bandIndex];
+        hid_t bandGroupID = H5Gcreate(fileID, ConstructPath((const char*[]){bandName}, 1), H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        if (bandGroupID < 0){
+            fprintf(stderr, "Failed to create group: %s\n", bandName);
+            success = false;
+            continue;
+        }
+        for (unsigned int clipIndex = 0; clipIndex < clipResult->clipCount; clipIndex++){
+            ClipGrid *clipGrid = &clipResult->clipGrids[bandIndex][clipIndex];
+            hsize_t dims[3] = {clipGrid->latitudeCount, clipGrid->longitudeCount, clipGrid->heightCount};
+            char clipName[10];
+            sprintf(clipName, "slice_%d", clipIndex);
+            hid_t clipGroupID = H5Gcreate(bandGroupID, clipName, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+            if (clipGroupID < 0){
+                fprintf(stderr, "Failed to create group: %s\n", clipName);
+                success = false;
+                continue;
+            }
+            // write value
+            hid_t dataspaceID = H5Screate_simple(3, dims, NULL);
+            if (dataspaceID < 0){
+                fprintf(stderr, "Failed to create dataspace: %s\n", clipName);
+                H5Sclose(dataspaceID);
+                H5Gclose(clipGroupID);
+                success = false;
+                continue;
+            }
+            hid_t valueID = H5Dcreate(clipGroupID, "Value", H5T_NATIVE_FLOAT, dataspaceID, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+            if (valueID < 0){
+                fprintf(stderr, "Failed to create dataset: %s\n", clipName);
+                H5Dclose(valueID);
+                H5Sclose(dataspaceID);
+                H5Gclose(clipGroupID);
+                success = false;
+                continue;
+            }
+            herr_t status = H5Dwrite(valueID, H5T_IEEE_F32LE, H5S_ALL, H5S_ALL, H5P_DEFAULT, clipGrid->value);
+            if (status < 0){
+                fprintf(stderr, "Failed to write value\n");
+                success = false;
+            }
+            H5Dclose(valueID);
+            H5Sclose(dataspaceID);
+
+            // write attributes for value
+            hid_t clipAttriSpaceID = H5Screate(H5S_SCALAR);
+            if (clipAttriSpaceID < 0){
+                fprintf(stderr, "Failed to create dataspace: %s\n", clipName);
+                H5Sclose(clipAttriSpaceID);
+                H5Gclose(clipGroupID);
+                success = false;
+                continue;
+            }
+            hid_t minLatID = H5Acreate(clipGroupID, "Min_Latitude", H5T_NATIVE_FLOAT, clipAttriSpaceID, H5P_DEFAULT, H5P_DEFAULT);
+            if (minLatID < 0){
+                fprintf(stderr, "Failed to create dataset: %s\n", clipName);
+                success = false;
+            }else{
+                status = H5Awrite(minLatID, H5T_NATIVE_FLOAT, &clipGrid->minLatitude);
+                if (status < 0){
+                    fprintf(stderr, "Failed to write dataset: %s\n", "minLatitude");
+                    success = false;
+                }
+                H5Aclose(minLatID);
+            }
+
+            hid_t maxLatID = H5Acreate(clipGroupID, "Max_Latitude", H5T_NATIVE_FLOAT, clipAttriSpaceID, H5P_DEFAULT, H5P_DEFAULT);
+            if (maxLatID < 0){
+                fprintf(stderr, "Failed to create dataset: %s\n", clipName);
+                success = false;
+            }else{
+                status = H5Awrite(maxLatID, H5T_NATIVE_FLOAT, &clipGrid->maxLatitude);
+                if (status < 0){
+                    fprintf(stderr, "Failed to write dataset: %s\n", "maxLatitude");
+                    success = false;
+                }
+                H5Aclose(maxLatID);
+            }
+
+            hid_t minLongID = H5Acreate(clipGroupID, "Min_Longitude", H5T_NATIVE_FLOAT, clipAttriSpaceID, H5P_DEFAULT, H5P_DEFAULT);
+            if (minLongID < 0){
+                fprintf(stderr, "Failed to create dataset: %s\n", clipName);
+                success = false;
+            }else{
+                status = H5Awrite(minLongID, H5T_NATIVE_FLOAT, &clipGrid->minLongitude);
+                if (status < 0){
+                    fprintf(stderr, "Failed to write dataset: %s\n", "minLongitude");
+                    success = false;
+                }
+                H5Aclose(minLongID);
+            }
+            
+            hid_t maxLongID = H5Acreate(clipGroupID, "Max_Longitude", H5T_NATIVE_FLOAT, clipAttriSpaceID, H5P_DEFAULT, H5P_DEFAULT);
+            if (maxLongID < 0){
+                fprintf(stderr, "Failed to create dataset: %s\n", clipName);
+                success = false;
+            }else{
+                status = H5Awrite(maxLongID, H5T_NATIVE_FLOAT, &clipGrid->maxLongitude);
+                if (status < 0){
+                    fprintf(stderr, "Failed to write dataset: %s\n", "maxLongitude");
+                    success = false;
+                }
+                H5Aclose(maxLongID);
+            }
+
+            hid_t minHeightID = H5Acreate(clipGroupID, "Min_Height", H5T_NATIVE_FLOAT, clipAttriSpaceID, H5P_DEFAULT, H5P_DEFAULT);
+            if (minHeightID < 0){
+                fprintf(stderr, "Failed to create dataset: %s\n", clipName);
+                success = false;
+            }else{
+                status = H5Awrite(minHeightID, H5T_NATIVE_FLOAT, &clipGrid->minHeight);
+                if (status < 0){
+                    fprintf(stderr, "Failed to write dataset: %s\n", "minHeight");
+                    success = false;
+                }
+                H5Aclose(minHeightID);
+            }
+
+            hid_t latitudeGapID = H5Acreate(clipGroupID, "Latitude_Gap", H5T_NATIVE_FLOAT, clipAttriSpaceID, H5P_DEFAULT, H5P_DEFAULT);
+            if (latitudeGapID < 0){
+                fprintf(stderr, "Failed to create dataset: %s\n", clipName);
+                success = false;
+            }else{
+                status = H5Awrite(latitudeGapID, H5T_NATIVE_FLOAT, &clipGrid->latitudeGap);
+                if (status < 0){
+                    fprintf(stderr, "Failed to write dataset: %s\n", "latitudeGap");
+                    success = false;
+                }
+                H5Aclose(latitudeGapID);
+            }
+
+            hid_t longitudeGapID = H5Acreate(clipGroupID, "Longitude_Gap", H5T_NATIVE_FLOAT, clipAttriSpaceID, H5P_DEFAULT, H5P_DEFAULT);
+            if (longitudeGapID < 0){
+                fprintf(stderr, "Failed to create dataset: %s\n", clipName);
+                success = false;
+            }else{
+                status = H5Awrite(longitudeGapID, H5T_NATIVE_FLOAT, &clipGrid->longitudeGap);
+                if (status < 0){
+                    fprintf(stderr, "Failed to write dataset: %s\n", "longitudeGap");
+                    success = false;
+                }
+                H5Aclose(longitudeGapID);
+            }
+
+            hid_t heightGapID = H5Acreate(clipGroupID, "Height_Gap", H5T_NATIVE_FLOAT, clipAttriSpaceID, H5P_DEFAULT, H5P_DEFAULT);
+            if (heightGapID < 0){
+                fprintf(stderr, "Failed to create dataset: %s\n", clipName);
+                success = false;
+            }else{
+                status = H5Awrite(heightGapID, H5T_NATIVE_FLOAT, &clipGrid->heightGap);
+                if (status < 0){
+                    fprintf(stderr, "Failed to write dataset: %s\n", "heightGap");
+                    success = false;
+                }
+                H5Aclose(heightGapID);
+            }            
+            H5Sclose(clipAttriSpaceID);
+
+            H5Gclose(clipGroupID);
+        }
+        H5Gclose(bandGroupID);
+    }
+
+    if (!WriteGlobalAttribute(fileID, &clipResult->globalAttribute)){
+        fprintf(stderr, "Failed to write global attribute\n");
+        success = false;
+    }
+    H5Fclose(fileID);
+    return success;
 }
 
 bool InitBatchReadContext(BatchReadContext* ctx, hsize_t batchSize) {
@@ -618,4 +842,134 @@ bool ReadBatchScanLines(hsize_t startLine, hsize_t batchSize, const HDFBandRequi
     free(binClutter_batch);
     free(height_batch);
     return true;
+}
+
+char* ConstructOutputFilename(const char* filename, const char* suffix) {
+    if (!filename || !suffix) {
+        return NULL;
+    }
+    
+    const char* pathEnd = strrchr(filename, '/');
+    if (!pathEnd)
+        pathEnd = strrchr(filename, '\\');
+    
+    const char* dot = strrchr(filename, '.');
+    const char* nameStart = pathEnd ? pathEnd + 1 : filename;
+    const char* extension = dot && dot > nameStart ? dot : "";
+    size_t nameLen = extension[0] ? (size_t)(dot - nameStart) : strlen(nameStart);
+    
+    size_t pathLen = pathEnd ? pathEnd - filename + 1 : 0;
+    size_t totalLen = pathLen + nameLen + strlen(suffix) + strlen(extension) + 1;
+    char* result = (char*)malloc(totalLen);
+    if (!result) {
+        return NULL;
+    }
+    
+    sprintf(result, "%.*s%.*s%s%s", 
+            (int)pathLen, filename,
+            (int)nameLen, nameStart,
+            suffix, extension);
+    
+    return result;
+}
+
+struct Config* ReadConfig(const char* filename){
+    struct Config* config = (struct Config*)malloc(sizeof(struct Config));
+    config->batch_size = DEFAULT_BATCH_SIZE;
+    config->k_neighbor = DEFAULT_K_NEIGHBOR;
+    config->kdtree_capacity = DEFAULT_KDTREE_CAPACITY;
+    config->grid_size = DEFAULT_GRID_SIZE;
+    config->minimal_height = DEFAULT_MINIMAL_HEIGHT;
+    config->maximal_height = DEFAULT_MINIMAL_HEIGHT + DEFAULT_HEIGHT_COUNT * DEFAULT_HEIGHT_GAP;
+    config->height_gap = DEFAULT_HEIGHT_GAP;
+    config->height_count = DEFAULT_HEIGHT_COUNT;
+    config->max_distance_tolerance = DEFAULT_MAX_DISTANCE_TOLERANCE;
+    config->max_neighbor_distance = DEFAULT_MAX_NEIGHBOR_DISTANCE;
+    config->min_neighbor_distance = DEFAULT_MIN_NEIGHBOR_DISTANCE;
+    
+    FILE* file = fopen(filename, "r");
+    if (!file) {
+        fprintf(stderr, "Failed to open config file: %s\n", filename);
+        return config;
+    }
+    
+    char line[256];
+    char output_file_name[256];
+    
+    while (fgets(line, sizeof(line), file)) {
+        size_t len = strlen(line);
+        if (len > 0 && line[len-1] == '\n')
+            line[len-1] = '\0';
+        
+        char *key = strtok(line, "=");
+        char *value = strtok(NULL, "=");
+        
+        if (!key || !value) continue;
+        while (*key == ' ') key++;
+        while (*value == ' ') value++;
+        
+        if (strcmp(key, "INPUT_FILE_NAME") == 0) {
+            strncpy(config->input_file_name, value, sizeof(config->input_file_name) - 1);
+            config->input_file_name[sizeof(config->input_file_name) - 1] = '\0';
+        } else if (strcmp(key, "OUTPUT_FILE_NAME") == 0) {
+            strncpy(output_file_name, value, sizeof(output_file_name) - 1);
+            output_file_name[sizeof(output_file_name) - 1] = '\0';
+        } else if (strcmp(key, "MAX_LONGITUDE_WIDTH") == 0) {
+            float max_longitude_width = atof(value);
+            if (max_longitude_width > 0)
+                config->max_longitude_width = max_longitude_width;
+        } else if (strcmp(key, "MINIMAL_HEIGHT") == 0) {
+            float minimal_height = atof(value);
+            if (minimal_height > 0)
+                config->minimal_height = minimal_height;
+        } else if (strcmp(key, "HEIGHT_GAP") == 0) {
+            float height_gap = atof(value);
+            if (height_gap > 0)
+                config->height_gap = height_gap;
+        } else if (strcmp(key, "HEIGHT_COUNT") == 0) {
+            int height_count = atoi(value);
+            if (height_count > 0)
+                config->height_count = height_count;
+        } else if (strcmp(key, "K_NEIGHBOR") == 0) {
+            int k_neighbor = atoi(value);
+            if (k_neighbor > 0)
+                config->k_neighbor = k_neighbor;
+        } else if (strcmp(key, "KDTREE_CAPACITY") == 0) {
+            int kdtree_capacity = atoi(value);
+            if (kdtree_capacity > 0)
+                config->kdtree_capacity = kdtree_capacity;
+        } else if (strcmp(key, "BATCH_SIZE") == 0) {
+            int batch_size = atoi(value);
+            if (batch_size > 0)
+                config->batch_size = batch_size;
+        } else if (strcmp(key, "GRID_SIZE") == 0) {
+            int grid_size = atoi(value);
+            if (grid_size > 0)
+                config->grid_size = grid_size;
+        } else if (strcmp(key, "MAX_DISTANCE_TOLERANCE") == 0) {
+            float max_distance_tolerance = atof(value);
+            if (max_distance_tolerance > 0)
+                config->max_distance_tolerance = max_distance_tolerance;
+        } else if (strcmp(key, "MAX_NEIGHBOR_DISTANCE") == 0) {
+            float max_neighbor_distance = atof(value);
+            if (max_neighbor_distance > 0)
+                config->max_neighbor_distance = max_neighbor_distance;
+        } else if (strcmp(key, "MIN_NEIGHBOR_DISTANCE") == 0) {
+            float min_neighbor_distance = atof(value);
+            if (min_neighbor_distance > 0)
+                config->min_neighbor_distance = min_neighbor_distance;
+        }
+    }
+    config->maximal_height = config->minimal_height + config->height_count * config->height_gap;
+    
+    strncpy(config->geo_output_file_name, ConstructOutputFilename(output_file_name, "_geo"), 
+             sizeof(config->geo_output_file_name) - 1);
+    config->geo_output_file_name[sizeof(config->geo_output_file_name) - 1] = '\0';
+    
+    strncpy(config->clip_output_file_name, ConstructOutputFilename(output_file_name, "_clip"), 
+             sizeof(config->clip_output_file_name) - 1);
+    config->clip_output_file_name[sizeof(config->clip_output_file_name) - 1] = '\0';
+    
+    fclose(file);
+    return config;
 }

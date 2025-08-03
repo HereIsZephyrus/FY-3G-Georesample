@@ -1,7 +1,5 @@
 #ifndef INDEX_H
 #define INDEX_H
-#define DEFAULT_K_NEIGHBOR 5
-#define DEFAULT_KDTREE_CAPACITY 100000
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -36,8 +34,6 @@ PointBatch* CreateRStarPointBatch(unsigned int initialCapacity);
 void DestroyRStarPointBatch(PointBatch* batch);
 void DestroyKDCalcPointBatch(KDCalcPointBatch* batch);
 KDCalcPointBatch* ConstructKDCalcPointFromPointBatch(const GeodeticGrid* geodeticGrid, unsigned int bandIndex);
-RStarIndex* CreateRStarIndexFromSortedBatch(PointBatch* batch, const unsigned int bandIndex, const BulkLoadConfig* config);
-void RStarPointBatch_SortSpatially(PointBatch* batch, const unsigned int bandIndex);
 unsigned int CalcHeightIndex(float height, unsigned int** indices);
 void InsertKDCalcPoint(KDCalcPointClip* point, const float latitude, const float longitude, const unsigned int index);
 

@@ -1,25 +1,25 @@
 #include <stdio.h>
 #include "interface.h"
 #include "core.h"
+#include "config.h"
 
 int main(int argc, char *argv[]) {
     /**
      * @brief transfer FY-3G raw HDF5 3D prespirator data to geodetic coordinates
-     * @param argv[1]: path to the raw HDF5 file
-     * @param argv[2]: path to the output file
+     * @param argv[1]: path to the config file
      * @return 0 if success, -1 if failed
     */
-    if (argc != 3) {
-        printf("Usage: %s <input_file> <output_file>\n", argv[0]);
+    if (argc != 2){
+        printf("Usage: %s <config_file>\n", argv[0]);
         return -1;
     }
-    const char *input_file = argv[1];
-    const char *output_file = argv[2];
+    g_config = ReadConfig(argv[1]);
     HDFDataset dataset;
-    if (!ReadHDF5(input_file, &dataset)){
+    if (!ReadHDF5(g_config->input_file_name, &dataset)){
         printf("Failed to read HDF5 file\n");
         return -1;
     }
+    printf("Read HDF5 file successfully\n");
 
     GeodeticGrid processedGrid;
     unsigned int capacity = dataset.globalAttribute.scanLineCount * SCAN_ANGLE_COUNT * SCAN_HEIGHT_COUNT;
@@ -31,10 +31,12 @@ int main(int argc, char *argv[]) {
         DestroyGeodeticGrid(&processedGrid);
         return -2;
     }
-    if (!WriteHDF5(output_file, &processedGrid, &dataset.globalAttribute)){
+    printf("Process dataset successfully\n");
+
+    if (!WriteTotalGeodetic(g_config->geo_output_file_name, &processedGrid, &dataset.globalAttribute)){
         printf("Failed to write HDF5 file\n");
     }
-
+    printf("Write HDF5 file successfully\n");
     IndexForest forest;
     ClipGridResult finalGrid;
     if (!InitClipResult(&dataset, &processedGrid, pointBatch, &forest, &finalGrid)){
@@ -46,6 +48,7 @@ int main(int argc, char *argv[]) {
         DestroyClipGridResult(&finalGrid);
         return -3;
     }
+    printf("Init clip result successfully\n");
     DestroyHDFDataset(&dataset);
     DestroyRStarPointBatch(pointBatch);
     printf("Interpolate grid\n");
@@ -56,7 +59,16 @@ int main(int argc, char *argv[]) {
         DestroyGeodeticGrid(&processedGrid);
         return -4;
     }
-    printf("Interpolate successfully\n");
+
+    printf("Interpolate grid successfully\n");
+    if (!WriteClipResult(g_config->clip_output_file_name, &finalGrid)){
+        printf("Failed to write clip result\n");
+        DestroyIndexForest(&forest);
+        DestroyClipGridResult(&finalGrid);
+        DestroyGeodeticGrid(&processedGrid);
+        return -5;
+    }
+    printf("Write clip result successfully\n");
 
     DestroyGeodeticGrid(&processedGrid);
     DestroyIndexForest(&forest);

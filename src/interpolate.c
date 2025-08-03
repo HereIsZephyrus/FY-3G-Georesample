@@ -1,6 +1,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "config.h"
 #include "data.h"
 #include "interpolate.h"
 #include "geotransfer.h"
@@ -140,7 +141,8 @@ bool InitClipGridArray(const HDFDataset* dataset, int gridSize, int initHeight, 
      * @param finalGrid: the final grid to store the data
      * @return true if successful, false otherwise
      */
-    const unsigned int lineCount = dataset->globalAttribute.scanLineCount;
+    finalGrid->globalAttribute = dataset->globalAttribute;
+    const unsigned int lineCount = finalGrid->globalAttribute.scanLineCount;
     const float latitudeGap = (float)gridSize * 180.0f / (M_PI * WGS84_B);
     for (int bandIndex = 0; bandIndex < 2; bandIndex++){
         float globalMaxLatitude, globalMinLatitude, globalMaxLongitude, globalMinLongitude; // longitude is wrapped
@@ -195,10 +197,10 @@ double InterpolateValueIDW(const double queryPoint[3], const float queryHeight, 
             continue;
         }
         RStarPoint* point = &result->points[i];
-        if (point->h == -1 || fabs(point->h - queryHeight) > DEFAULT_HEIGHT_GAP * 2) continue; // skip invalid height points
+        if (point->h == -1 || fabs(point->h - queryHeight) > g_config->height_gap * 2) continue; // skip invalid height points
         double distance = sqrt((queryPoint[0] - point->x) * (queryPoint[0] - point->x) + (queryPoint[1] - point->y) * (queryPoint[1] - point->y) + (queryPoint[2] - point->z) * (queryPoint[2] - point->z));
-        if (distance > 2 * DEFAULT_GRID_SIZE) continue; // skip points too far away
-        if (distance < 100) return valueArray[pointId]; // return exact value
+        if (distance > g_config->max_neighbor_distance) continue; // skip points too far away
+        if (distance < g_config->min_neighbor_distance) return valueArray[pointId]; // return exact value
         double weight = 1.0 / pow(distance, power);
         weightSum += weight;
         valueSum += weight * valueArray[pointId];
@@ -212,8 +214,8 @@ double InterpolateValueIDW_v(const unsigned int neightborCount, const double* di
     double weightSum = 0.0;
     double valueSum = 0.0;
     for (unsigned int i = 0; i < neightborCount; i++){
-        if (distances[i] > 2 * DEFAULT_GRID_SIZE) continue; // skip points too far away
-        if (distances[i] < 100) return valueArray[ids[i]]; // return exact value
+        if (distances[i] > g_config->max_neighbor_distance) continue; // skip points too far away
+        if (distances[i] < g_config->min_neighbor_distance) return valueArray[ids[i]]; // return exact value
         double weight = 1.0 / pow(distances[i], power);
         weightSum += weight;
         valueSum += weight * valueArray[ids[i]];
