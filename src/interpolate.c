@@ -141,7 +141,8 @@ bool InitClipGridArray(const HDFDataset* dataset, int gridSize, int initHeight, 
      * @param finalGrid: the final grid to store the data
      * @return true if successful, false otherwise
      */
-    const unsigned int lineCount = dataset->globalAttribute.scanLineCount;
+    finalGrid->globalAttribute = dataset->globalAttribute;
+    const unsigned int lineCount = finalGrid->globalAttribute.scanLineCount;
     const float latitudeGap = (float)gridSize * 180.0f / (M_PI * WGS84_B);
     for (int bandIndex = 0; bandIndex < 2; bandIndex++){
         float globalMaxLatitude, globalMinLatitude, globalMaxLongitude, globalMinLongitude; // longitude is wrapped

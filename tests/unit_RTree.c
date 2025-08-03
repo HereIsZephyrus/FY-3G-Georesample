@@ -4,8 +4,7 @@
 #include <time.h>
 #include <math.h>
 #include <stdlib.h>
-#include "index.h"
-
+#include "rstartree.h"
 
 void test_rstar3d_basic_functionality(void) {
     TEST_MESSAGE("Start RStar3D basic functionality test");
