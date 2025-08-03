@@ -29,17 +29,16 @@ static int compare_points_y(const void* a, const void* b) {
 }
 
 static unsigned int CalcExactHeightIndex(float height){
-    static const float DEFAULT_MAXIMAL_HEIGHT = (DEFAULT_MINIMAL_HEIGHT + DEFAULT_HEIGHT_COUNT * DEFAULT_HEIGHT_GAP);
-    if (height < DEFAULT_MINIMAL_HEIGHT)
+    if (height < g_config->minimal_height)
         return 0;
-    if (height > DEFAULT_MAXIMAL_HEIGHT)
-        return DEFAULT_HEIGHT_COUNT - 1;
-    return (unsigned int)(ceil((height - DEFAULT_MINIMAL_HEIGHT) / DEFAULT_HEIGHT_GAP));
+    if (height > g_config->maximal_height)
+        return g_config->height_count - 1;
+    return (unsigned int)(ceil((height - g_config->minimal_height) / g_config->height_gap));
 }
 
 unsigned int CalcHeightIndex(float height, unsigned int** indices){
     unsigned int exactIndex = CalcExactHeightIndex(height);
-    if (exactIndex >= DEFAULT_HEIGHT_COUNT + 2)
+    if (exactIndex >= g_config->height_count + 2)
         return 0;
     if (exactIndex < 2){ // 0 to exactIndex + 2
         unsigned int size = exactIndex + 2 + 1;
@@ -48,8 +47,8 @@ unsigned int CalcHeightIndex(float height, unsigned int** indices){
             (*indices)[i] = i;
         return size;
     }
-    else if (exactIndex > DEFAULT_HEIGHT_COUNT - 2){ // exactIndex - 2 to DEFAULT_HEIGHT_COUNT( total DEFAULT_HEIGHT_COUNT + 1 layers)
-        unsigned int size = DEFAULT_HEIGHT_COUNT + 2 - exactIndex + 1;
+    else if (exactIndex > g_config->height_count - 2){ // exactIndex - 2 to g_config->height_count( total g_config->height_count + 1 layers)
+        unsigned int size = g_config->height_count + 2 - exactIndex + 1;
         *indices = (unsigned int*)malloc(size * sizeof(unsigned int));
         for (unsigned int i = 0; i < size; i++)
             (*indices)[i] = exactIndex - 2 + i;
@@ -261,7 +260,7 @@ bool CreateRStarForest(const PointBatch* pointBatch, ClipGridResult* finalGrid, 
 }
 
 bool CreateKDTreeForest(const GeodeticGrid* geodeticGrid, IndexForest* forest){
-    forest->KDTreeSize = DEFAULT_HEIGHT_COUNT + 1;
+    forest->KDTreeSize = g_config->height_count + 1;
     bool success = true;
     for (unsigned int bandIndex = 0; bandIndex < 2; bandIndex++){
         forest->flatindex[bandIndex] = (KDTree**)malloc(forest->KDTreeSize * sizeof(KDTree*));
@@ -299,10 +298,10 @@ void DestroyKDCalcPointBatch(KDCalcPointBatch* batch){
 KDCalcPointBatch* ConstructKDCalcPointFromPointBatch(const GeodeticGrid* geodeticGrid, unsigned int bandIndex){
     KDCalcPointBatch* batch = (KDCalcPointBatch*)malloc(sizeof(KDCalcPointBatch));
     if (!batch) return NULL;
-    batch->heightCount = DEFAULT_HEIGHT_COUNT + 1;
+    batch->heightCount = g_config->height_count + 1;
     batch->value = (KDCalcPointClip*)malloc(batch->heightCount * sizeof(KDCalcPointClip));
     for (unsigned int h = 0; h < batch->heightCount; h++){        
-        batch->value[h].capacity = DEFAULT_KDTREE_CAPACITY;
+        batch->value[h].capacity = g_config->kdtree_capacity;
         batch->value[h].count = 0;
         batch->value[h].points = (KDCalcPoint*)malloc(batch->value[h].capacity * sizeof(KDCalcPoint));
         if (!batch->value[h].points){

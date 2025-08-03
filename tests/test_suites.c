@@ -21,7 +21,7 @@ int main(void) {
         RUN_TEST(test_comprehensive);
     }
     else {
-        RUN_TEST(test_comprehensive);
+        RUN_TEST(test_readHDF5);
     }
     return UNITY_END();
 }

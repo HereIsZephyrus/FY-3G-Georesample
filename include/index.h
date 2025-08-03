@@ -1,7 +1,5 @@
 #ifndef INDEX_H
 #define INDEX_H
-#define DEFAULT_K_NEIGHBOR 5
-#define DEFAULT_KDTREE_CAPACITY 100000
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -9,6 +7,7 @@
 #include "avltree.h"
 #include "rstartree.h"
 #include "data.h"
+#include "config.h"
 
 typedef struct {
     RStarPoint* points[2];

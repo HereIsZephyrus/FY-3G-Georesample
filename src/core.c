@@ -4,11 +4,11 @@
 #include "interpolate.h"
 #include "geotransfer.h"
 #include "index.h"
+#include "config.h"
 
 static bool IsValidHeightData(const float coordinateHeight, const float elevation, const unsigned int heightIndex, const float clutterFreeBottomIndex){
-    static const float DEFAULT_MAXIMAL_HEIGHT = (DEFAULT_MINIMAL_HEIGHT + DEFAULT_HEIGHT_COUNT * DEFAULT_HEIGHT_GAP);
     if (heightIndex >= clutterFreeBottomIndex) return false;
-    if (coordinateHeight > DEFAULT_MAXIMAL_HEIGHT) return false;
+    if (coordinateHeight > g_config->maximal_height) return false;
     if (coordinateHeight < elevation) return false;
     return true;
 }
@@ -96,7 +96,7 @@ bool InterpolateClipGrid(const RStarPoint* points, KDTree** flatindexForest, RSt
                 if (ProtentialToInterpolate(latitude, longitude, height, flatindexForest)){
                     double queryPoint[3];
                     TransferGeodeticToCartesian(latitude, longitude, height, &queryPoint[0], &queryPoint[1], &queryPoint[2]);
-                    SpatialQueryResult* result = RStarIndex_NearestNeighborQuery(indexTree, queryPoint, DEFAULT_K_NEIGHBOR);
+                    SpatialQueryResult* result = RStarIndex_NearestNeighborQuery(indexTree, queryPoint, g_config->k_neighbor);
                     FillQueryPointCoordinates(points, result->count, result);
                     if (!result){
                         fprintf(stderr, "Failed to query nearest neighbor for clip grid %d, %d, %d\n", b, l, h);
@@ -159,8 +159,8 @@ bool InterpolateClipGridBatch(RStarIndex* indexTree, KDTree** flatindexForest, c
         }
     }
     
-    int64_t* resultIds = (int64_t*)malloc(totalPoints * DEFAULT_K_NEIGHBOR * sizeof(int64_t));
-    double* resultDistances = (double*)malloc(totalPoints * DEFAULT_K_NEIGHBOR * sizeof(double));
+    int64_t* resultIds = (int64_t*)malloc(totalPoints * g_config->k_neighbor * sizeof(int64_t));
+    double* resultDistances = (double*)malloc(totalPoints * g_config->k_neighbor * sizeof(double));
     uint64_t* resultCounts = (uint64_t*)malloc(totalPoints * sizeof(uint64_t));
     
     if (!resultIds || !resultDistances || !resultCounts) {
@@ -176,10 +176,10 @@ bool InterpolateClipGridBatch(RStarIndex* indexTree, KDTree** flatindexForest, c
     // Perform batch nearest neighbor query using the new bulk API from PR #268
     int64_t actualProcessed = 0;
     RTError result = Index_NearestNeighbors_id_v(indexTree->spatialIndex,
-                                                 DEFAULT_K_NEIGHBOR,    // knn: number of nearest neighbors to find
+                                                 g_config->k_neighbor,    // knn: number of nearest neighbors to find
                                                  totalPoints,           // n: number of query points
                                                  3,                     // d: dimension (latitude, longitude, height)
-                                                 totalPoints * DEFAULT_K_NEIGHBOR, // idsz: total size of ids array
+                                                 totalPoints * g_config->k_neighbor, // idsz: total size of ids array
                                                  3,                     // d_i_stri: stride between query points
                                                  1,                     // d_j_stri: stride between dimensions
                                                  queryPoints,           // mins: query point coordinates
@@ -233,7 +233,7 @@ bool InterpolateGrid(const GeodeticGrid* processedGrid, IndexForest* forest, Cli
 }
 
 bool InitClipResult(const HDFDataset* dataset, const GeodeticGrid* geodeticGrid, const PointBatch* pointBatch, IndexForest* forest, ClipGridResult* finalGrid){
-    InitClipGridArray(dataset, DEFAULT_GRID_SIZE, DEFAULT_MINIMAL_HEIGHT, DEFAULT_HEIGHT_GAP, DEFAULT_HEIGHT_COUNT, finalGrid);
+    InitClipGridArray(dataset, g_config->grid_size, g_config->minimal_height, g_config->height_gap, g_config->height_count, finalGrid);
     CreateIndexForest(geodeticGrid, pointBatch, finalGrid, forest);
     return true;
 }

@@ -1,9 +1,8 @@
 #ifndef INTERFACE_H
 #define INTERFACE_H
-//#define BATCH_SIZE 500
-
 #include <hdf5.h>
 #include "data.h"
+#include "config.h"
 
 typedef struct {
     hid_t elevationID, latitudeID, longitudeID, zenithID, heightID, groundHeightID, valueID, binClutterID;
@@ -25,7 +24,10 @@ bool ReadBand(hid_t fileID, const char* bandName, HDFGlobalAttribute* globalAttr
 bool ReadSingleScanLine(int lineIndex, const HDFBandRequired* required, GridInfo* infoLine);
 bool ReadSingleDataset(int rank, hid_t datasetID, hsize_t* offset, hsize_t* count, void* buffer);
 char* ConstructPath(const char* pathNames[], const int pathLength);
-bool WriteHDF5(const char* filename, const GeodeticGrid* finalGrid, const HDFGlobalAttribute* globalAttribute);
+bool WriteTotalGeodetic(const char* filename, const GeodeticGrid* finalGrid, const HDFGlobalAttribute* globalAttribute);
+bool WriteClipResult(const char* filename, const ClipGridResult* clipResult);
 bool ReadBatchScanLines(hsize_t startLine, hsize_t batchSize, const HDFBandRequired* required, BatchReadContext* ctx, GridInfo** infoArray);
 bool ReadBatchDataset(hid_t datasetID, int rank, int dim3, hsize_t startLine, hsize_t batchSize, hid_t memspaceID, void* buffer);
+char* ConstructOutputFilename(const char* filename, const char* suffix);
+struct Config* ReadConfig(const char* filename);
 #endif

@@ -1,6 +1,0 @@
-{
-    "cmake.buildType": "Debug",
-    "cmake.configureArgs": [
-        "-DCMAKE_BUILD_TYPE=Debug"
-    ]
-}
