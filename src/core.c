@@ -1,3 +1,4 @@
+#include <omp.h>
 #include "core.h"
 #include "data.h"
 #include "interpolate.h"
@@ -85,7 +86,6 @@ bool InterpolateClipGrid(const RStarPoint* points, KDTree** flatindexForest, RSt
         fprintf(stderr, "Failed to interpolate clip grid, index tree or flatindex tree is NULL\n");
         return false;
     }
-    unsigned int ignoreCount = 0;
     for (unsigned int b = 0; b < clipGrid->latitudeCount; b++)
         for (unsigned int l = 0; l < clipGrid->longitudeCount; l++)
             for (unsigned int h = 0; h < clipGrid->heightCount; h++){
@@ -109,7 +109,6 @@ bool InterpolateClipGrid(const RStarPoint* points, KDTree** flatindexForest, RSt
                 else
                     clipGrid->value[index] = -999;
             }
-    printf("Ignore count: %u\n", ignoreCount);
     return true;
 }
 
@@ -166,11 +165,11 @@ bool InterpolateClipGridBatch(RStarIndex* indexTree, KDTree** flatindexForest, c
     
     if (!resultIds || !resultDistances || !resultCounts) {
         fprintf(stderr, "Failed to allocate memory for batch query results\n");
-        free(queryPoints);
-        free(queryHeights);
-        free(resultIds);
-        free(resultDistances);
-        free(resultCounts);
+        if (queryPoints) free(queryPoints);
+        if (queryHeights) free(queryHeights);
+        if (resultIds) free(resultIds);
+        if (resultDistances) free(resultDistances);
+        if (resultCounts) free(resultCounts);
         return false;
     }
     
@@ -209,24 +208,22 @@ bool InterpolateClipGridBatch(RStarIndex* indexTree, KDTree** flatindexForest, c
         clipGrid->value[index] = (float)InterpolateValueIDW_v(count, resultDistances, resultIds, valueArray, 2.0f);
     }
     
-    free(queryPoints);
-    free(queryHeights);
-    free(queryIDs);
-    free(resultIds);
-    free(resultDistances);
-    free(resultCounts);
+    if (queryPoints) free(queryPoints);
+    if (queryHeights) free(queryHeights);
+    if (queryIDs) free(queryIDs);
+    if (resultIds) free(resultIds);
+    if (resultDistances) free(resultDistances);
+    if (resultCounts) free(resultCounts);
     
     return true;
 }
 
 bool InterpolateGrid(const GeodeticGrid* processedGrid, IndexForest* forest, ClipGridResult* finalGrid){
     bool success = true;
-    //unsigned int clipCount = finalGrid->clipCount;
-    const unsigned int clipCount = 1; // for test
+    unsigned int clipCount = finalGrid->clipCount;
     for (unsigned int bandIndex = 0; bandIndex < 2; bandIndex++)
-        //#pragma omp parallel for shared(forest, processedGrid, finalGrid, bandIndex, clipCount) reduction(||:success)
+        #pragma omp parallel for shared(forest, processedGrid, finalGrid, bandIndex, clipCount) reduction(||:success)
         for (unsigned int clipIndex = 0; clipIndex < clipCount; clipIndex++){
-            //if (!InterpolateClipGrid(pointBatch->points[bandIndex], forest->flatindex[bandIndex], forest->index[bandIndex][clipIndex], processedGrid->valueArray[bandIndex], &finalGrid->clipGrids[bandIndex][clipIndex])){
             if (!InterpolateClipGridBatch(forest->index[bandIndex][clipIndex], forest->flatindex[bandIndex], processedGrid->valueArray[bandIndex], &finalGrid->clipGrids[bandIndex][clipIndex])){
                 fprintf(stderr, "Failed to interpolate clip grid for band %d, clip %d\n", bandIndex, clipIndex);
                 success = false;

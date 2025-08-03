@@ -177,7 +177,6 @@ void DestroyIndexForest(IndexForest* forest){
         free(forest->index[bandIndex]);
         free(forest->flatindex[bandIndex]);
     }
-    free(forest);
 }
 
 PointBatch* CreateRStarPointBatch(unsigned int initialCapacity) {

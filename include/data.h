@@ -59,6 +59,6 @@ bool InitGeodeticGrid(GeodeticGrid* finalGrid, const int lineCount, const int he
 
 void DestroyGridInfo(GridInfo* info);
 void DestroyHDFDataset(HDFDataset* dataset);
-void DestroyFinalGrid(GeodeticGrid* finalGrid);
+void DestroyGeodeticGrid(GeodeticGrid* finalGrid);
 void DestroyClipGridResult(ClipGridResult* clipGridResult);
 #endif

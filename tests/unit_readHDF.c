@@ -19,6 +19,6 @@ void test_readHDF5(void) {
     DestroyHDFDataset(&dataset);
     TEST_ASSERT_TRUE(WriteHDF5(TEST_OUTPUT_FILE, &finalGrid, &dataset.globalAttribute));
     TEST_MESSAGE("Write HDF5 file successfully");
-    DestroyFinalGrid(&finalGrid);
+    DestroyGeodeticGrid(&finalGrid);
     DestroyRStarPointBatch(pointBatch);
 }

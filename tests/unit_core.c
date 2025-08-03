@@ -22,5 +22,5 @@ void test_comprehensive(void){
     TEST_MESSAGE("Interpolate successfully");
     DestroyIndexForest(&forest);
     DestroyClipGridResult(&finalGrid);
-    DestroyFinalGrid(&processedGrid);
+    DestroyGeodeticGrid(&processedGrid);
 }

@@ -24,7 +24,7 @@ void DestroyHDFDataset(HDFDataset* dataset){
     }
 }
 
-void DestroyFinalGrid(GeodeticGrid* finalGrid){
+void DestroyGeodeticGrid(GeodeticGrid* finalGrid){
     if (!finalGrid) return;
     for (int bandIndex = 0; bandIndex < 2; bandIndex++){
         free(finalGrid->latitudeArray[bandIndex]);
@@ -93,7 +93,8 @@ void DestroyClipGridResult(ClipGridResult* clipGridResult){
             for (unsigned int clipIndex = 0; clipIndex < clipGridResult->clipCount; clipIndex++)
                 if (clipGridResult->clipGrids[bandIndex][clipIndex].value)
                     free(clipGridResult->clipGrids[bandIndex][clipIndex].value);
-            free(clipGridResult->clipGrids[bandIndex]);
+            if (clipGridResult->clipGrids[bandIndex])
+                free(clipGridResult->clipGrids[bandIndex]);
         }
     }
 }
