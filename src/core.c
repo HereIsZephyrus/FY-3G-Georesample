@@ -203,10 +203,12 @@ bool InterpolateClipGridBatch(RStarIndex* indexTree, KDTree** flatindexForest, c
     if (actualProcessed != totalPoints)
         fprintf(stderr, "Warning: Only %ld out of %u queries were processed in batch\n", actualProcessed, totalPoints);
         
+    unsigned int resultIndex = 0;
     for (unsigned int i = 0; i < totalPoints; i++){
         const unsigned int count = resultCounts[i];
         const unsigned int index = queryIDs[i];
-        clipGrid->value[index] = (float)InterpolateValueIDW_v(count, resultDistances, resultIds, valueArray, 2.0f);
+        clipGrid->value[index] = (float)InterpolateValueIDW_v(count, resultDistances + resultIndex, resultIds + resultIndex, valueArray, 2.0f);
+        resultIndex += count;
     }
     
     if (queryPoints) free(queryPoints);
