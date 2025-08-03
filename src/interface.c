@@ -553,7 +553,15 @@ bool WriteClipResult(const char* filename, const ClipGridResult* clipResult){
             H5Sclose(dataspaceID);
 
             // write attributes for value
-            hid_t minLatID = H5Acreate(clipGroupID, "Min_Latitude", H5T_NATIVE_FLOAT, H5S_SCALAR, H5P_DEFAULT, H5P_DEFAULT);
+            hid_t clipAttriSpaceID = H5Screate(H5S_SCALAR);
+            if (clipAttriSpaceID < 0){
+                fprintf(stderr, "Failed to create dataspace: %s\n", clipName);
+                H5Sclose(clipAttriSpaceID);
+                H5Gclose(clipGroupID);
+                success = false;
+                continue;
+            }
+            hid_t minLatID = H5Acreate(clipGroupID, "Min_Latitude", H5T_NATIVE_FLOAT, clipAttriSpaceID, H5P_DEFAULT, H5P_DEFAULT);
             if (minLatID < 0){
                 fprintf(stderr, "Failed to create dataset: %s\n", clipName);
                 success = false;
@@ -566,7 +574,7 @@ bool WriteClipResult(const char* filename, const ClipGridResult* clipResult){
                 H5Aclose(minLatID);
             }
 
-            hid_t maxLatID = H5Acreate(clipGroupID, "Max_Latitude", H5T_NATIVE_FLOAT, H5S_SCALAR, H5P_DEFAULT, H5P_DEFAULT);
+            hid_t maxLatID = H5Acreate(clipGroupID, "Max_Latitude", H5T_NATIVE_FLOAT, clipAttriSpaceID, H5P_DEFAULT, H5P_DEFAULT);
             if (maxLatID < 0){
                 fprintf(stderr, "Failed to create dataset: %s\n", clipName);
                 success = false;
@@ -579,7 +587,7 @@ bool WriteClipResult(const char* filename, const ClipGridResult* clipResult){
                 H5Aclose(maxLatID);
             }
 
-            hid_t minLongID = H5Acreate(clipGroupID, "Min_Longitude", H5T_NATIVE_FLOAT, H5S_SCALAR, H5P_DEFAULT, H5P_DEFAULT);
+            hid_t minLongID = H5Acreate(clipGroupID, "Min_Longitude", H5T_NATIVE_FLOAT, clipAttriSpaceID, H5P_DEFAULT, H5P_DEFAULT);
             if (minLongID < 0){
                 fprintf(stderr, "Failed to create dataset: %s\n", clipName);
                 success = false;
@@ -592,7 +600,7 @@ bool WriteClipResult(const char* filename, const ClipGridResult* clipResult){
                 H5Aclose(minLongID);
             }
             
-            hid_t maxLongID = H5Acreate(clipGroupID, "Max_Longitude", H5T_NATIVE_FLOAT, H5S_SCALAR, H5P_DEFAULT, H5P_DEFAULT);
+            hid_t maxLongID = H5Acreate(clipGroupID, "Max_Longitude", H5T_NATIVE_FLOAT, clipAttriSpaceID, H5P_DEFAULT, H5P_DEFAULT);
             if (maxLongID < 0){
                 fprintf(stderr, "Failed to create dataset: %s\n", clipName);
                 success = false;
@@ -605,7 +613,7 @@ bool WriteClipResult(const char* filename, const ClipGridResult* clipResult){
                 H5Aclose(maxLongID);
             }
 
-            hid_t minHeightID = H5Acreate(clipGroupID, "Min_Height", H5T_NATIVE_FLOAT, H5S_SCALAR, H5P_DEFAULT, H5P_DEFAULT);
+            hid_t minHeightID = H5Acreate(clipGroupID, "Min_Height", H5T_NATIVE_FLOAT, clipAttriSpaceID, H5P_DEFAULT, H5P_DEFAULT);
             if (minHeightID < 0){
                 fprintf(stderr, "Failed to create dataset: %s\n", clipName);
                 success = false;
@@ -618,7 +626,7 @@ bool WriteClipResult(const char* filename, const ClipGridResult* clipResult){
                 H5Aclose(minHeightID);
             }
 
-            hid_t latitudeGapID = H5Acreate(clipGroupID, "Latitude_Gap", H5T_NATIVE_FLOAT, H5S_SCALAR, H5P_DEFAULT, H5P_DEFAULT);
+            hid_t latitudeGapID = H5Acreate(clipGroupID, "Latitude_Gap", H5T_NATIVE_FLOAT, clipAttriSpaceID, H5P_DEFAULT, H5P_DEFAULT);
             if (latitudeGapID < 0){
                 fprintf(stderr, "Failed to create dataset: %s\n", clipName);
                 success = false;
@@ -631,7 +639,7 @@ bool WriteClipResult(const char* filename, const ClipGridResult* clipResult){
                 H5Aclose(latitudeGapID);
             }
 
-            hid_t longitudeGapID = H5Acreate(clipGroupID, "Longitude_Gap", H5T_NATIVE_FLOAT, H5S_SCALAR, H5P_DEFAULT, H5P_DEFAULT);
+            hid_t longitudeGapID = H5Acreate(clipGroupID, "Longitude_Gap", H5T_NATIVE_FLOAT, clipAttriSpaceID, H5P_DEFAULT, H5P_DEFAULT);
             if (longitudeGapID < 0){
                 fprintf(stderr, "Failed to create dataset: %s\n", clipName);
                 success = false;
@@ -644,7 +652,7 @@ bool WriteClipResult(const char* filename, const ClipGridResult* clipResult){
                 H5Aclose(longitudeGapID);
             }
 
-            hid_t heightGapID = H5Acreate(clipGroupID, "Height_Gap", H5T_NATIVE_FLOAT, H5S_SCALAR, H5P_DEFAULT, H5P_DEFAULT);
+            hid_t heightGapID = H5Acreate(clipGroupID, "Height_Gap", H5T_NATIVE_FLOAT, clipAttriSpaceID, H5P_DEFAULT, H5P_DEFAULT);
             if (heightGapID < 0){
                 fprintf(stderr, "Failed to create dataset: %s\n", clipName);
                 success = false;
@@ -871,7 +879,7 @@ char* ConstructOutputFilename(const char* filename, const char* suffix) {
     const char* dot = strrchr(filename, '.');
     const char* nameStart = pathEnd ? pathEnd + 1 : filename;
     const char* extension = dot && dot > nameStart ? dot : "";
-    size_t nameLen = extension[0] ? dot - nameStart : strlen(nameStart);
+    size_t nameLen = extension[0] ? (size_t)(dot - nameStart) : strlen(nameStart);
     
     size_t pathLen = pathEnd ? pathEnd - filename + 1 : 0;
     size_t totalLen = pathLen + nameLen + strlen(suffix) + strlen(extension) + 1;

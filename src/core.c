@@ -218,14 +218,25 @@ bool InterpolateClipGridBatch(RStarIndex* indexTree, KDTree** flatindexForest, c
     return true;
 }
 
+static unsigned int GetOrder(unsigned int index, unsigned int total){
+    // to process at order 0, n-1, 1, n-2, 2, n-3, ...
+    unsigned int order = 0;
+    if (index & 1) // odd
+        order = total - 1 - index / 2;
+    else
+        order = index / 2;
+    return order;
+}
+
 bool InterpolateGrid(const GeodeticGrid* processedGrid, IndexForest* forest, ClipGridResult* finalGrid){
     bool success = true;
     unsigned int clipCount = finalGrid->clipCount;
     #pragma omp parallel for shared(forest, processedGrid, finalGrid, clipCount) reduction(||:success) collapse(2) schedule(dynamic)
     for (unsigned int bandIndex = 0; bandIndex < 2; bandIndex++)
         for (unsigned int clipIndex = 0; clipIndex < clipCount; clipIndex++){
-            if (!InterpolateClipGridBatch(forest->index[bandIndex][clipIndex], forest->flatindex[bandIndex], processedGrid->valueArray[bandIndex], &finalGrid->clipGrids[bandIndex][clipIndex])){
-                fprintf(stderr, "Failed to interpolate clip grid for band %d, clip %d\n", bandIndex, clipIndex);
+            const unsigned int order = GetOrder(clipIndex, clipCount);
+            if (!InterpolateClipGridBatch(forest->index[bandIndex][order], forest->flatindex[bandIndex], processedGrid->valueArray[bandIndex], &finalGrid->clipGrids[bandIndex][order])){
+                fprintf(stderr, "Failed to interpolate clip grid for band %d, clip %d\n", bandIndex, order);
                 success = false;
             }
         }

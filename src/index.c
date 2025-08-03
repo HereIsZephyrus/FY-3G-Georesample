@@ -239,44 +239,50 @@ bool CreateRStarForest(const PointBatch* pointBatch, ClipGridResult* finalGrid, 
     bool success = true;
     const unsigned int clipCount = finalGrid->clipCount;
     forest->RStarForestSize = clipCount;
+    BulkLoadConfig* bulkconfig = CreateDefaultBulkLoadConfig();
     for (unsigned int bandIndex = 0; bandIndex < 2; bandIndex++){
         forest->index[bandIndex] = (RStarIndex**)malloc(clipCount * sizeof(RStarIndex*));
         if (!forest->index[bandIndex]){
             fprintf(stderr, "Failed to allocate memory for RStar index for band %d\n", bandIndex);
-            success = false;
+            return false;
         }
-        BulkLoadConfig* config = CreateDefaultBulkLoadConfig();
-        #pragma omp parallel for shared(pointBatch, finalGrid, bandIndex, clipCount, config) reduction(||:success)
+    }
+    #pragma omp parallel for shared(pointBatch, finalGrid, clipCount, bulkconfig) reduction(||:success) collapse(2) schedule(dynamic)
+    for (unsigned int bandIndex = 0; bandIndex < 2; bandIndex++){
         for (unsigned int clipIndex = 0; clipIndex < clipCount; clipIndex++){
             const unsigned int startIndex = finalGrid->clipGrids[bandIndex][clipIndex].leftLineIndex * SCAN_ANGLE_COUNT * SCAN_HEIGHT_COUNT;
             const unsigned int endIndex = (finalGrid->clipGrids[bandIndex][clipIndex].rightLineIndex + 1) * SCAN_ANGLE_COUNT * SCAN_HEIGHT_COUNT;
-            forest->index[bandIndex][clipIndex] = CreateRStarIndexFromBatch(pointBatch, startIndex, endIndex, bandIndex, config);
+            forest->index[bandIndex][clipIndex] = CreateRStarIndexFromBatch(pointBatch, startIndex, endIndex, bandIndex, bulkconfig);
             if (!forest->index[bandIndex][clipIndex]){
                 fprintf(stderr, "Failed to create RStar index for band %d, clip %d\n", bandIndex, clipIndex);
                 success = false;
             }
-        }
-        DestroyBulkLoadConfig(config);
+        }        
     }
+    DestroyBulkLoadConfig(bulkconfig);
     return success;
 }
 
 bool CreateKDTreeForest(const GeodeticGrid* geodeticGrid, IndexForest* forest){
     forest->KDTreeSize = g_config->height_count + 1;
     bool success = true;
+    KDCalcPointBatch *points[2];
     for (unsigned int bandIndex = 0; bandIndex < 2; bandIndex++){
         forest->flatindex[bandIndex] = (KDTree**)malloc(forest->KDTreeSize * sizeof(KDTree*));
-        KDCalcPointBatch* points = ConstructKDCalcPointFromPointBatch(geodeticGrid, bandIndex);
-        #pragma omp parallel for shared(points, forest, bandIndex) reduction(||:success)
+        points[bandIndex] = ConstructKDCalcPointFromPointBatch(geodeticGrid, bandIndex);
+    }
+    #pragma omp parallel for shared(points, forest) reduction(||:success) collapse(2) schedule(dynamic)
+    for (unsigned int bandIndex = 0; bandIndex < 2; bandIndex++){
         for (unsigned int heightIndex = 0; heightIndex < forest->KDTreeSize; heightIndex++){
-            forest->flatindex[bandIndex][heightIndex] = CreateKDTreeFromBatch(&points->value[heightIndex], heightIndex);
+            forest->flatindex[bandIndex][heightIndex] = CreateKDTreeFromBatch(&points[bandIndex]->value[heightIndex], heightIndex);
             if (!forest->flatindex[bandIndex][heightIndex]){
                 fprintf(stderr, "Failed to create KDTree for band %d, height %d\n", bandIndex, heightIndex);
                 success = false;
             }
         }
-        DestroyKDCalcPointBatch(points);
     }
+    for (unsigned int bandIndex = 0; bandIndex < 2; bandIndex++)
+        DestroyKDCalcPointBatch(points[bandIndex]);
     return success;
 }
 
