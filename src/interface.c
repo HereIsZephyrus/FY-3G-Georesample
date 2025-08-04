@@ -453,10 +453,20 @@ bool WriteTotalGeodetic(const unsigned int bandIndex, const char* filename, cons
     @param dataset: the dataset to write
     @return true if successful, false otherwise
     */
-    hid_t fileID = H5Fcreate(filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (fileID < 0){
-        fprintf(stderr, "Failed to create file: %s\n", filename);   
-        return false;
+    hid_t fileID = 0;
+    if (bandIndex == 0){
+        fileID = H5Fcreate(filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+        if (fileID < 0){
+            fprintf(stderr, "Failed to create file: %s\n", filename);
+            return false;
+        }
+    }
+    else{
+        fileID = H5Fopen(filename, H5F_ACC_RDWR, H5P_DEFAULT);    
+        if (fileID < 0) {
+            fprintf(stderr, "Failed to open file: %s\n", filename);
+            return false;
+        }
     }
 
     //write data
@@ -533,13 +543,19 @@ bool WriteClipResult(const unsigned int bandIndex, const char* filename, const C
     @return true if successful, false otherwise
     */
     hid_t fileID = 0;
-    if (bandIndex == 0)
+    if (bandIndex == 0){
+        fileID = H5Fcreate(filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+        if (fileID < 0){
+            fprintf(stderr, "Failed to create file: %s\n", filename);
+            return false;
+        }
+    }
+    else{
         fileID = H5Fopen(filename, H5F_ACC_RDWR, H5P_DEFAULT);    
-    else
-        fileID = H5Fopen(filename, H5F_ACC_RDONLY, H5P_DEFAULT);
-    if(fileID < 0) {
-        fprintf(stderr, "Failed to open file: %s\n", filename);
-        return false;
+        if (fileID < 0) {
+            fprintf(stderr, "Failed to open file: %s\n", filename);
+            return false;
+        }
     }
 
     bool success = true;
