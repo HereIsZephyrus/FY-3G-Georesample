@@ -33,10 +33,6 @@ int main(int argc, char *argv[]) {
     }
     printf("Process dataset successfully\n");
 
-    if (!WriteTotalGeodetic(g_config->geo_output_file_name, &processedGrid, &dataset.globalAttribute)){
-        printf("Failed to write HDF5 file\n");
-    }
-    printf("Write HDF5 file successfully\n");
     IndexForest forest;
     ClipGridResult finalGrid;
     if (!InitClipResult(&dataset, &processedGrid, pointBatch, &forest, &finalGrid)){
@@ -51,7 +47,7 @@ int main(int argc, char *argv[]) {
     printf("Init clip result successfully\n");
     DestroyHDFDataset(&dataset);
     DestroyRStarPointBatch(pointBatch);
-    printf("Interpolate grid\n");
+    
     if (!InterpolateGrid(&processedGrid, &forest, &finalGrid)){
         printf("Failed to interpolate grid\n");
         DestroyIndexForest(&forest);

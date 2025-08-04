@@ -317,15 +317,12 @@ KDCalcPointBatch* ConstructKDCalcPointFromPointBatch(const GeodeticGrid* geodeti
     }
     unsigned int capacity = geodeticGrid->lineCount * SCAN_ANGLE_COUNT * geodeticGrid->heightCount;
     for (unsigned int i = 0; i < capacity; i++){
+        if (!geodeticGrid->validArray[bandIndex][i]) continue;
         const float latitude = geodeticGrid->latitudeArray[bandIndex][i];
         const float longitude = geodeticGrid->longitudeArray[bandIndex][i];
         const float height = geodeticGrid->elevationArray[bandIndex][i];
-        if (!geodeticGrid->validArray[bandIndex][i]) continue;
-        unsigned int *heightIndices = NULL;
-        unsigned int size = CalcHeightIndex(height, &heightIndices);
-        for (unsigned int j = 0; j < size; j++)
-            InsertKDCalcPoint(&batch->value[heightIndices[j]], latitude, longitude, i);
-        free(heightIndices);
+        const unsigned int heightIndex = CalcExactHeightIndex(height);
+        InsertKDCalcPoint(&batch->value[heightIndex], latitude, longitude, i);
     }
     return batch;
 }
@@ -345,16 +342,6 @@ void InsertKDCalcPoint(KDCalcPointClip* clip, const float latitude, const float 
     clip->points[clip->count].latitude = latitude;
     clip->points[clip->count].longitude = longitude;
     clip->points[clip->count].id = index;
-    clip->points[clip->count].lat_sum = latitude;
-    clip->points[clip->count].lon_sum = longitude;
-    clip->points[clip->count].lat_square_sum = latitude * latitude;
-    clip->points[clip->count].lon_square_sum = longitude * longitude;
-    if (clip->count > 0){
-        clip->points[clip->count].lat_sum += clip->points[clip->count - 1].lat_sum;
-        clip->points[clip->count].lon_sum += clip->points[clip->count - 1].lon_sum;
-        clip->points[clip->count].lat_square_sum += clip->points[clip->count - 1].lat_square_sum;
-        clip->points[clip->count].lon_square_sum += clip->points[clip->count - 1].lon_square_sum;
-    }
     clip->count++;
 }
 

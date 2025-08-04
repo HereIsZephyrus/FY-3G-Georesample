@@ -66,8 +66,7 @@ bool RStarIndex_InsertPoint(RStarIndex* index, const RStarPoint* point) {
     if (!index || !point || !IsRStarIndexValid(index))
         return false;
     double queryPoint[3] = {(double)point->x, (double)point->y, (double)point->z};
-    RTError result = Index_InsertData(index->spatialIndex, point->id, queryPoint, queryPoint, 3,
-            (const uint8_t*)point->userData, point->userDataSize);
+    RTError result = Index_InsertData(index->spatialIndex, point->id, queryPoint, queryPoint, 3, (const uint8_t*)NULL, 0);
 
     return result == RT_None;
 }
@@ -125,7 +124,7 @@ void RStarIndex_ClearBuffer(RStarIndex* index) {
         Index_ClearBuffer(index->spatialIndex);
 }
 
-RStarPoint* CreateRStarPoint(float x, float y, float z, int64_t id, const void* userData, size_t userDataSize) {
+RStarPoint* CreateRStarPoint(float x, float y, float z, int64_t id) {
     RStarPoint* point = (RStarPoint*)malloc(sizeof(RStarPoint));
     if (!point) return NULL;
 
@@ -133,25 +132,13 @@ RStarPoint* CreateRStarPoint(float x, float y, float z, int64_t id, const void* 
     point->y = y;
     point->z = z;
     point->id = id;
-    point->userData = NULL;
-    point->userDataSize = userDataSize;
-
-    if (userData && userDataSize > 0) {
-        point->userData = malloc(userDataSize);
-        if (point->userData)
-            memcpy(point->userData, userData, userDataSize);
-        else
-            point->userDataSize = 0;
-    }
 
     return point;
 }
 
 void DestroyRStarPoint(RStarPoint* point) {
-    if (point) {
-        free(point->userData);
+    if (point)
         free(point);
-    }
 }
 
 SpatialQueryResult* CreateSpatialQueryResult() {
@@ -168,11 +155,8 @@ SpatialQueryResult* CreateSpatialQueryResult() {
 void DestroySpatialQueryResult(SpatialQueryResult* result) {
     if (result) {
         free(result->ids);
-        if (result->points) {
-            for (unsigned int i = 0; i < result->count; i++)
-                free(result->points[i].userData);
+        if (result->points)
             free(result->points);
-        }
         free(result);
     }
 }
@@ -186,8 +170,6 @@ void FillQueryPointCoordinates(const RStarPoint* points, unsigned int count, Spa
         result->points[i].z = points[result->ids[i]].z;
         result->points[i].h = points[result->ids[i]].h;
         result->points[i].id = result->ids[i];
-        result->points[i].userData = NULL;
-        result->points[i].userDataSize = 0;
     }
 }
 

@@ -13,10 +13,6 @@ static KDCalcPoint* CreateTestKDCalcPoints(int count) {
         points[i].latitude = (float)(i * 10.0 + 5.0);  // 5.0, 15.0, 25.0, ...
         points[i].longitude = (float)(i * 5.0 + 2.0);  // 2.0, 7.0, 12.0, ...
         points[i].id = i + 1;
-        points[i].lat_sum = points[i].latitude * (i + 1);
-        points[i].lon_sum = points[i].longitude * (i + 1);
-        points[i].lat_square_sum = points[i].latitude * points[i].latitude * (i + 1);
-        points[i].lon_square_sum = points[i].longitude * points[i].longitude * (i + 1);
     }
     return points;
 }
@@ -24,13 +20,13 @@ static KDCalcPoint* CreateTestKDCalcPoints(int count) {
 static bool ValidateKDNode(const KDNode* node, int depth) {
     if (!node) return true;
     
-    if (node->split_dim != 0 && node->split_dim != 1) return false;
+    if (node->splitDim != 0 && node->splitDim != 1) return false;
     
     if (!ValidateKDNode(node->left, depth + 1)) return false;
     if (!ValidateKDNode(node->right, depth + 1)) return false;
     
     if (node->left) {
-        if (node->split_dim == 0) {
+        if (node->splitDim == 0) {
             if (node->left->latitude > node->latitude) return false;
         } else {
             if (node->left->longitude > node->longitude) return false;
@@ -38,7 +34,7 @@ static bool ValidateKDNode(const KDNode* node, int depth) {
     }
     
     if (node->right) {
-        if (node->split_dim == 0) {
+        if (node->splitDim == 0) {
             if (node->right->latitude < node->latitude) return false;
         } else {
             if (node->right->longitude < node->longitude) return false;
@@ -46,27 +42,6 @@ static bool ValidateKDNode(const KDNode* node, int depth) {
     }
     
     return true;
-}
-
-void test_kdtree_select_split_dimension(void) {
-    TEST_MESSAGE("Start KDTree select split dimension test");
-    
-    int result = SelectSplitDimension(NULL, 0);
-    TEST_ASSERT_EQUAL_INT(0, result);
-    
-    KDCalcPoint* points = CreateTestKDCalcPoints(1);
-    TEST_ASSERT_NOT_NULL(points);
-    result = SelectSplitDimension(points, 1);
-    TEST_ASSERT_EQUAL_INT(0, result);
-    
-    free(points);
-    points = CreateTestKDCalcPoints(5);
-    TEST_ASSERT_NOT_NULL(points);
-    result = SelectSplitDimension(points, 5);
-    TEST_ASSERT_TRUE(result == 0 || result == 1);
-    
-    free(points);
-    TEST_MESSAGE("KDTree select split dimension test completed");
 }
 
 void test_kdtree_build_tree(void) {
@@ -106,7 +81,7 @@ void test_kdtree_insert_node(void) {
     TEST_ASSERT_EQUAL_FLOAT(10.0, root->latitude);
     TEST_ASSERT_EQUAL_FLOAT(20.0, root->longitude);
     TEST_ASSERT_EQUAL_INT64(1, root->id);
-    TEST_ASSERT_EQUAL_INT(0, root->split_dim);
+    TEST_ASSERT_EQUAL_INT(0, root->splitDim);
     TEST_ASSERT_NULL(root->left);
     TEST_ASSERT_NULL(root->right);
     
@@ -257,10 +232,6 @@ void test_kdtree_comprehensive(void) {
         points[i].latitude = (float)(rand() % 1000) / 10.0;  // 0-99.9
         points[i].longitude = (float)(rand() % 1000) / 10.0; // 0-99.9
         points[i].id = i + 1;
-        points[i].lat_sum = points[i].latitude * (i + 1);
-        points[i].lon_sum = points[i].longitude * (i + 1);
-        points[i].lat_square_sum = points[i].latitude * points[i].latitude * (i + 1);
-        points[i].lon_square_sum = points[i].longitude * points[i].longitude * (i + 1);
     }
     
     KDNode* root = BuildKDTree(points, point_count, 0);
@@ -295,7 +266,6 @@ void test_kdtree_comprehensive(void) {
 
 void test_kdtree2d(void) {
     TEST_MESSAGE("=== Starting KDTree 2D Tests ===");    
-    RUN_TEST(test_kdtree_select_split_dimension);
     RUN_TEST(test_kdtree_build_tree);
     RUN_TEST(test_kdtree_insert_node);
     RUN_TEST(test_kdtree_insert_tree);

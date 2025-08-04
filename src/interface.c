@@ -315,8 +315,6 @@ bool ReadSingleScanLine(int lineIndex, const HDFBandRequired* required, GridInfo
     }
     if (success){
         for (int angleIndex = 0; angleIndex < SCAN_ANGLE_COUNT; angleIndex++){
-            infoLine[angleIndex].lineIndex = lineIndex;
-            infoLine[angleIndex].angleIndex = angleIndex;
             infoLine[angleIndex].groundL = longitude[angleIndex][0];
             infoLine[angleIndex].groundB = latitude[angleIndex][0];
             infoLine[angleIndex].groundH = groundHeight[angleIndex];
@@ -552,7 +550,7 @@ bool WriteClipResult(const char* filename, const ClipGridResult* clipResult){
         }
         for (unsigned int clipIndex = 0; clipIndex < clipResult->clipCount; clipIndex++){
             ClipGrid *clipGrid = &clipResult->clipGrids[bandIndex][clipIndex];
-            hsize_t dims[3] = {clipGrid->latitudeCount, clipGrid->longitudeCount, clipGrid->heightCount};
+            hsize_t dims[3] = {clipGrid->longitudeCount, clipGrid->latitudeCount, clipGrid->heightCount};
             char clipName[10];
             sprintf(clipName, "slice_%d", clipIndex);
             hid_t clipGroupID = H5Gcreate(bandGroupID, clipName, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
@@ -811,8 +809,6 @@ bool ReadBatchScanLines(hsize_t startLine, hsize_t batchSize, const HDFBandRequi
             size_t base3D_2 = base2D * 2;
             size_t base3D_500 = base2D * SCAN_HEIGHT_COUNT;
             
-            infoLine[angleIndex].lineIndex = lineIdx;
-            infoLine[angleIndex].angleIndex = angleIndex;
             infoLine[angleIndex].groundL = longitude_batch[base3D_2];
             infoLine[angleIndex].groundB = latitude_batch[base3D_2];
             infoLine[angleIndex].groundH = groundHeight_batch[base2D];

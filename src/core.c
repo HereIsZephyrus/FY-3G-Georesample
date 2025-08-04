@@ -40,7 +40,7 @@ void CalculateGridData(const GridInfo* sampleGridInfo, GeodeticGrid* geodeticGri
             geodeticGrid->validArray[bandIndex][index] = false;
         }
         if (geodeticGrid->valueArray[bandIndex][index] > -999 && IsValidHeightData(coordinate.h, sampleGridInfo->evaluation, heightIndex ,sampleGridInfo->clutterFreeBottomIndex)){
-            pointBatch->points[bandIndex][index] = *CreateRStarPoint(coordinate.x, coordinate.y, coordinate.z, index, NULL, 0);  
+            pointBatch->points[bandIndex][index] = *CreateRStarPoint(coordinate.x, coordinate.y, coordinate.z, index);  
             pointBatch->points[bandIndex][index].h = coordinate.h;
         }
         else{
@@ -87,13 +87,14 @@ bool InterpolateClipGrid(const RStarPoint* points, KDTree** flatindexForest, RSt
         fprintf(stderr, "Failed to interpolate clip grid, index tree or flatindex tree is NULL\n");
         return false;
     }
-    for (unsigned int b = 0; b < clipGrid->latitudeCount; b++)
-        for (unsigned int l = 0; l < clipGrid->longitudeCount; l++)
+
+    for (unsigned int l = 0; l < clipGrid->longitudeCount; l++)
+        for (unsigned int b = 0; b < clipGrid->latitudeCount; b++)
             for (unsigned int h = 0; h < clipGrid->heightCount; h++){
                 const float latitude = clipGrid->minLatitude + b * clipGrid->latitudeGap;
                 const float longitude = clipGrid->minLongitude + l * clipGrid->longitudeGap;
                 const float height = clipGrid->minHeight + h * clipGrid->heightGap;
-                unsigned int index = b * clipGrid->longitudeCount * clipGrid->heightCount + l * clipGrid->heightCount + h;
+                unsigned int index = l * clipGrid->latitudeCount * clipGrid->heightCount + b * clipGrid->heightCount + h;
                 if (ProtentialToInterpolate(latitude, longitude, height, flatindexForest)){
                     double queryPoint[3];
                     TransferGeodeticToCartesian(latitude, longitude, height, &queryPoint[0], &queryPoint[1], &queryPoint[2]);
@@ -136,13 +137,13 @@ bool InterpolateClipGridBatch(RStarIndex* indexTree, KDTree** flatindexForest, c
         return false;
     }
     
-    for (unsigned int b = 0; b < clipGrid->latitudeCount; b++) {
-        for (unsigned int l = 0; l < clipGrid->longitudeCount; l++) {
+    for (unsigned int l = 0; l < clipGrid->longitudeCount; l++) 
+        for (unsigned int b = 0; b < clipGrid->latitudeCount; b++) {{
             for (unsigned int h = 0; h < clipGrid->heightCount; h++) {
                 const float latitude = clipGrid->minLatitude + b * clipGrid->latitudeGap;
                 const float longitude = clipGrid->minLongitude + l * clipGrid->longitudeGap;
                 const float height = clipGrid->minHeight + h * clipGrid->heightGap;
-                const unsigned int index = b * clipGrid->longitudeCount * clipGrid->heightCount + l * clipGrid->heightCount + h;
+                const unsigned int index = l * clipGrid->latitudeCount * clipGrid->heightCount + b * clipGrid->heightCount + h;
                 if (ProtentialToInterpolate(latitude, longitude, height, flatindexForest)){
                     if (totalPoints >= capacity){
                         capacity *= 2;
