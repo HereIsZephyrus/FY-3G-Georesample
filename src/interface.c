@@ -532,13 +532,14 @@ bool WriteClipResult(const unsigned int bandIndex, const char* filename, const C
     @param clipResult: the clip result
     @return true if successful, false otherwise
     */
-    hid_t fileID = H5Fopen(filename, H5F_ACC_RDWR, H5P_DEFAULT);    
+    hid_t fileID = 0;
+    if (bandIndex == 0)
+        fileID = H5Fopen(filename, H5F_ACC_RDWR, H5P_DEFAULT);    
+    else
+        fileID = H5Fopen(filename, H5F_ACC_RDONLY, H5P_DEFAULT);
     if(fileID < 0) {
-        fileID = H5Fcreate(filename, H5F_ACC_EXCL, H5P_DEFAULT, H5P_DEFAULT);
-        if(fileID < 0) {
-            fprintf(stderr, "Failed to create file: %s\n", filename);
-            return false;
-        }
+        fprintf(stderr, "Failed to open file: %s\n", filename);
+        return false;
     }
 
     bool success = true;

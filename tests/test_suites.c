@@ -12,8 +12,8 @@ int main(void) {
     RUN_TEST(test_index);
     RUN_TEST(test_rstar3d);
     RUN_TEST(test_kdtree2d);
+    RUN_TEST(test_interpolate);
     RUN_TEST(test_geotransfer);
     RUN_TEST(test_readHDF5);
-    RUN_TEST(test_interpolate);
     return UNITY_END();
 }
