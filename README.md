@@ -4,6 +4,8 @@
 
 FY-3G空间重采样工具是一个用于处理FY-3G卫星降水雷达数据的高性能C语言应用程序，支持OpenMP并行计算，集成R*树、KD树空间索引优化大数据处理性能。该工具能够将原始HDF5格式的三维降水数据转换为大地坐标系统，并根据采样间隔对不同纬度带切片重采样。
 
+![](https://cdn.jsdelivr.net/gh/HereIsZephyrus/zephyrus.img/images/blog/FY-3Gdemo.png)
+
 算法详见[docs/algorithm.md](docs/algorithm.md)
 项目说明文档详见[docs/project.md](docs/project.md)
 
