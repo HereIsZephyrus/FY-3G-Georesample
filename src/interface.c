@@ -552,7 +552,7 @@ bool WriteClipResult(const char* filename, const ClipGridResult* clipResult){
         }
         for (unsigned int clipIndex = 0; clipIndex < clipResult->clipCount; clipIndex++){
             ClipGrid *clipGrid = &clipResult->clipGrids[bandIndex][clipIndex];
-            hsize_t dims[3] = {clipGrid->latitudeCount, clipGrid->longitudeCount, clipGrid->heightCount};
+            hsize_t dims[3] = {clipGrid->longitudeCount, clipGrid->latitudeCount, clipGrid->heightCount};
             char clipName[10];
             sprintf(clipName, "slice_%d", clipIndex);
             hid_t clipGroupID = H5Gcreate(bandGroupID, clipName, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
