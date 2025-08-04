@@ -317,15 +317,12 @@ KDCalcPointBatch* ConstructKDCalcPointFromPointBatch(const GeodeticGrid* geodeti
     }
     unsigned int capacity = geodeticGrid->lineCount * SCAN_ANGLE_COUNT * geodeticGrid->heightCount;
     for (unsigned int i = 0; i < capacity; i++){
+        if (!geodeticGrid->validArray[bandIndex][i]) continue;
         const float latitude = geodeticGrid->latitudeArray[bandIndex][i];
         const float longitude = geodeticGrid->longitudeArray[bandIndex][i];
         const float height = geodeticGrid->elevationArray[bandIndex][i];
-        if (!geodeticGrid->validArray[bandIndex][i]) continue;
-        unsigned int *heightIndices = NULL;
-        unsigned int size = CalcHeightIndex(height, &heightIndices);
-        for (unsigned int j = 0; j < size; j++)
-            InsertKDCalcPoint(&batch->value[heightIndices[j]], latitude, longitude, i);
-        free(heightIndices);
+        const unsigned int heightIndex = CalcExactHeightIndex(height);
+        InsertKDCalcPoint(&batch->value[heightIndex], latitude, longitude, i);
     }
     return batch;
 }
