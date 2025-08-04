@@ -4,3 +4,6 @@
 [submodule "libspatialindex"]
 	path = libspatialindex
 	url = https://github.com/libspatialindex/libspatialindex.git
+[submodule "hdf5"]
+	path = hdf5
+	url = https://github.com/HDFGroup/hdf5
