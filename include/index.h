@@ -9,7 +9,7 @@
 #include "data.h"
 
 typedef struct {
-    RStarPoint* points[2];
+    RStarPoint* points;
     unsigned int capacity;
 } PointBatch;
 
@@ -33,7 +33,7 @@ typedef struct {
 PointBatch* CreateRStarPointBatch(unsigned int initialCapacity);
 void DestroyRStarPointBatch(PointBatch* batch);
 void DestroyKDCalcPointBatch(KDCalcPointBatch* batch);
-KDCalcPointBatch* ConstructKDCalcPointFromPointBatch(const GeodeticGrid* geodeticGrid, unsigned int bandIndex);
+KDCalcPointBatch* ConstructKDCalcPointFromPointBatch(const GeodeticGrid* geodeticGrid);
 unsigned int CalcHeightIndex(float height, unsigned int** indices);
 void InsertKDCalcPoint(KDCalcPointClip* point, const float latitude, const float longitude, const unsigned int index);
 
@@ -41,13 +41,13 @@ PointBatchAtHeight* CreatePointBatchAtHeight(unsigned int initialCapacity);
 void DestroyPointBatchAtHeight(PointBatchAtHeight* batch);
 
 typedef struct {
-    RStarIndex** index[2]; // [bandIndex][clipCount]
-    KDTree** flatindex[2]; // [bandIndex][hightCount]
+    RStarIndex** index; // [clipCount]
+    KDTree** flatindex; // [hightCount]
     unsigned int RStarForestSize, KDTreeSize;
 } IndexForest;
 
-RStarIndex* CreateRStarIndexFromBatch(const PointBatch* batch, const unsigned int startIndex, const unsigned int endIndex, const unsigned int bandIndex, const BulkLoadConfig* config);
-AVLTree* CreateAVLTreeFromBatch(const PointBatch* pointBatch, const unsigned int startIndex, const unsigned int endIndex, const unsigned int bandIndex);
+RStarIndex* CreateRStarIndexFromBatch(const PointBatch* batch, const unsigned int startIndex, const unsigned int endIndex, const BulkLoadConfig* config);
+AVLTree* CreateAVLTreeFromBatch(const PointBatch* pointBatch, const unsigned int startIndex, const unsigned int endIndex);
 KDTree* CreateKDTreeFromBatch(KDCalcPointClip* clip, unsigned int heightIndex);
 bool CreateRStarForest(const PointBatch* pointBatch, ClipGridResult* finalGrid, IndexForest* forest);
 bool CreateKDTreeForest(const GeodeticGrid* geodeticGrid, IndexForest* forest);

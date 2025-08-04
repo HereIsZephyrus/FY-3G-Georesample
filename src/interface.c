@@ -35,9 +35,10 @@ char* ConstructPath(const char* pathNames[], const int pathLength){
     return path;
 }
 
-bool ReadHDF5(const char* filename, HDFDataset* dataset){
+bool ReadHDF5(const unsigned int bandIndex, const char* filename, HDFDataset* dataset){
     /**
     @brief Read HDF5 file
+    @param bandIndex: the index of the band
     @param filename: the name of the HDF5 file
     @param dataset: the dataset to store the data
     @return true if successful, false otherwise
@@ -64,13 +65,11 @@ bool ReadHDF5(const char* filename, HDFDataset* dataset){
         return false;
     }
 
-    for (int bandIndex = 0; bandIndex < 2; bandIndex++){
-        const char* bandName = BAND_NAMES[bandIndex];
-        dataset->infoArray[bandIndex] = (GridInfo**)malloc(dataset->globalAttribute.scanLineCount * sizeof(GridInfo*));
-        if (!ReadBand(fileID, bandName, &dataset->globalAttribute, dataset->infoArray[bandIndex])){
-            fprintf(stderr, "Failed to read band: %s\n", bandName);
-            return false;
-        }
+    const char* bandName = BAND_NAMES[bandIndex];
+    dataset->infoArray = (GridInfo**)malloc(dataset->globalAttribute.scanLineCount * sizeof(GridInfo*));
+    if (!ReadBand(fileID, bandName, &dataset->globalAttribute, dataset->infoArray)){
+        fprintf(stderr, "Failed to read band: %s\n", bandName);
+        return false;
     }
 
     H5Gclose(geolocationID);
@@ -446,9 +445,10 @@ bool WriteGlobalAttribute(hid_t fileID, const HDFGlobalAttribute* globalAttribut
     return success;
 }
 
-bool WriteTotalGeodetic(const char* filename, const GeodeticGrid* dataset, const HDFGlobalAttribute* globalAttribute){
+bool WriteTotalGeodetic(const unsigned int bandIndex, const char* filename, const GeodeticGrid* dataset, const HDFGlobalAttribute* globalAttribute){
     /**
     @brief Write HDF5 file
+    @param bandIndex: the band index
     @param filename: the name of the HDF5 file
     @param dataset: the dataset to write
     @return true if successful, false otherwise
@@ -461,61 +461,59 @@ bool WriteTotalGeodetic(const char* filename, const GeodeticGrid* dataset, const
 
     //write data
     hsize_t dims[3] = {dataset->lineCount, SCAN_ANGLE_COUNT, dataset->heightCount};
-    for (int bandIndex = 0; bandIndex < 2; bandIndex++){
-        bool success = true;
-        const char* bandName = BAND_NAMES[bandIndex];
-        hid_t bandGroupID = H5Gcreate(fileID, ConstructPath((const char*[]){bandName}, 1), H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-        if (bandGroupID < 0){
-            fprintf(stderr, "Failed to create group: %s\n", bandName);
-            H5Gclose(bandGroupID);
-            H5Fclose(fileID);
-            return false;
-        }
-        hid_t dataspaceID = H5Screate_simple(3, dims, NULL);
-        if (dataspaceID < 0){
-            fprintf(stderr, "Failed to create dataspace: %s\n", bandName);
-            H5Sclose(dataspaceID);
-            H5Gclose(bandGroupID);
-            H5Fclose(fileID);
-            return false;
-        }
-        hid_t latitudeID = H5Dcreate(bandGroupID, "Latitude", H5T_NATIVE_FLOAT, dataspaceID, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-        hid_t longitudeID = H5Dcreate(bandGroupID, "Longitude", H5T_NATIVE_FLOAT, dataspaceID, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-        hid_t elevationID = H5Dcreate(bandGroupID, "Elevation", H5T_NATIVE_FLOAT, dataspaceID, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-        hid_t valueID = H5Dcreate(bandGroupID, "Value", H5T_NATIVE_FLOAT, dataspaceID, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-        if (latitudeID < 0 || longitudeID < 0 || elevationID < 0 || valueID < 0){
-            fprintf(stderr, "Failed to create dataset: %s\n", bandName);
-            success = false;
-        }
-        herr_t status = H5Dwrite(latitudeID, H5T_IEEE_F32LE, H5S_ALL, H5S_ALL, H5P_DEFAULT, dataset->latitudeArray[bandIndex]);
-        if (status < 0){
-            fprintf(stderr, "Failed to write latitude\n");
-            success = false;
-        }
-        status = H5Dwrite(longitudeID, H5T_IEEE_F32LE, H5S_ALL, H5S_ALL, H5P_DEFAULT, dataset->longitudeArray[bandIndex]);
-        if (status < 0){
-            fprintf(stderr, "Failed to write longitude\n");
-            success = false;
-        }
-        status = H5Dwrite(elevationID, H5T_IEEE_F32LE, H5S_ALL, H5S_ALL, H5P_DEFAULT, dataset->elevationArray[bandIndex]);
-        if (status < 0){
-            fprintf(stderr, "Failed to write elevation\n");
-            success = false;
-        }
-        status = H5Dwrite(valueID, H5T_IEEE_F32LE, H5S_ALL, H5S_ALL, H5P_DEFAULT, dataset->valueArray[bandIndex]);
-        if (status < 0){
-            fprintf(stderr, "Failed to write value\n");
-            success = false;
-        }
-        H5Sclose(dataspaceID);
-        H5Dclose(latitudeID);
-        H5Dclose(longitudeID);
-        H5Dclose(elevationID);
-        H5Dclose(valueID);
+    bool success = true;
+    const char* bandName = BAND_NAMES[bandIndex];
+    hid_t bandGroupID = H5Gcreate(fileID, ConstructPath((const char*[]){bandName}, 1), H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (bandGroupID < 0){
+        fprintf(stderr, "Failed to create group: %s\n", bandName);
         H5Gclose(bandGroupID);
-        if (!success)
-            return false;
+        H5Fclose(fileID);
+        return false;
     }
+    hid_t dataspaceID = H5Screate_simple(3, dims, NULL);
+    if (dataspaceID < 0){
+        fprintf(stderr, "Failed to create dataspace: %s\n", bandName);
+        H5Sclose(dataspaceID);
+        H5Gclose(bandGroupID);
+        H5Fclose(fileID);
+        return false;
+    }
+    hid_t latitudeID = H5Dcreate(bandGroupID, "Latitude", H5T_NATIVE_FLOAT, dataspaceID, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    hid_t longitudeID = H5Dcreate(bandGroupID, "Longitude", H5T_NATIVE_FLOAT, dataspaceID, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    hid_t elevationID = H5Dcreate(bandGroupID, "Elevation", H5T_NATIVE_FLOAT, dataspaceID, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    hid_t valueID = H5Dcreate(bandGroupID, "Value", H5T_NATIVE_FLOAT, dataspaceID, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (latitudeID < 0 || longitudeID < 0 || elevationID < 0 || valueID < 0){
+        fprintf(stderr, "Failed to create dataset: %s\n", bandName);
+        success = false;
+    }
+    herr_t status = H5Dwrite(latitudeID, H5T_IEEE_F32LE, H5S_ALL, H5S_ALL, H5P_DEFAULT, dataset->latitudeArray);
+    if (status < 0){
+        fprintf(stderr, "Failed to write latitude\n");
+        success = false;
+    }
+    status = H5Dwrite(longitudeID, H5T_IEEE_F32LE, H5S_ALL, H5S_ALL, H5P_DEFAULT, dataset->longitudeArray);
+    if (status < 0){
+        fprintf(stderr, "Failed to write longitude\n");
+        success = false;
+    }
+    status = H5Dwrite(elevationID, H5T_IEEE_F32LE, H5S_ALL, H5S_ALL, H5P_DEFAULT, dataset->elevationArray);
+    if (status < 0){
+        fprintf(stderr, "Failed to write elevation\n");
+        success = false;
+    }
+    status = H5Dwrite(valueID, H5T_IEEE_F32LE, H5S_ALL, H5S_ALL, H5P_DEFAULT, dataset->valueArray);
+    if (status < 0){
+        fprintf(stderr, "Failed to write value\n");
+        success = false;
+    }
+    H5Sclose(dataspaceID);
+    H5Dclose(latitudeID);
+    H5Dclose(longitudeID);
+    H5Dclose(elevationID);
+    H5Dclose(valueID);
+    H5Gclose(bandGroupID);
+    if (!success)
+        return false;
 
     if (!WriteGlobalAttribute(fileID, globalAttribute)){
         fprintf(stderr, "Failed to write global attribute\n");
@@ -526,185 +524,186 @@ bool WriteTotalGeodetic(const char* filename, const GeodeticGrid* dataset, const
     return true;
 }
 
-bool WriteClipResult(const char* filename, const ClipGridResult* clipResult){
+bool WriteClipResult(const unsigned int bandIndex, const char* filename, const ClipGridResult* clipResult){
     /**
     @brief Write clip result
+    @param bandIndex: the band index
     @param filename: the name of the HDF5 file
     @param clipResult: the clip result
     @return true if successful, false otherwise
     */
-    hid_t fileID = H5Fcreate(filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    if (fileID < 0){
-        fprintf(stderr, "Failed to create file: %s\n", filename);   
-        return false;
+    hid_t fileID = H5Fopen(filename, H5F_ACC_RDWR, H5P_DEFAULT);    
+    if(fileID < 0) {
+        fileID = H5Fcreate(filename, H5F_ACC_EXCL, H5P_DEFAULT, H5P_DEFAULT);
+        if(fileID < 0) {
+            fprintf(stderr, "Failed to create file: %s\n", filename);
+            return false;
+        }
     }
 
     bool success = true;
-    for (unsigned int bandIndex = 0; bandIndex < 2; bandIndex++){
-        const char* bandName = BAND_NAMES[bandIndex];
-        hid_t bandGroupID = H5Gcreate(fileID, ConstructPath((const char*[]){bandName}, 1), H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-        if (bandGroupID < 0){
-            fprintf(stderr, "Failed to create group: %s\n", bandName);
+    const char* bandName = BAND_NAMES[bandIndex];
+    hid_t bandGroupID = H5Gcreate(fileID, ConstructPath((const char*[]){bandName}, 1), H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (bandGroupID < 0){
+        fprintf(stderr, "Failed to create group: %s\n", bandName);
+        return false;
+    }
+    for (unsigned int clipIndex = 0; clipIndex < clipResult->clipCount; clipIndex++){
+        ClipGrid *clipGrid = &clipResult->clipGrids[clipIndex];
+        hsize_t dims[3] = {clipGrid->longitudeCount, clipGrid->latitudeCount, clipGrid->heightCount};
+        char clipName[10];
+        sprintf(clipName, "slice_%d", clipIndex);
+        hid_t clipGroupID = H5Gcreate(bandGroupID, clipName, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        if (clipGroupID < 0){
+            fprintf(stderr, "Failed to create group: %s\n", clipName);
             success = false;
             continue;
         }
-        for (unsigned int clipIndex = 0; clipIndex < clipResult->clipCount; clipIndex++){
-            ClipGrid *clipGrid = &clipResult->clipGrids[bandIndex][clipIndex];
-            hsize_t dims[3] = {clipGrid->longitudeCount, clipGrid->latitudeCount, clipGrid->heightCount};
-            char clipName[10];
-            sprintf(clipName, "slice_%d", clipIndex);
-            hid_t clipGroupID = H5Gcreate(bandGroupID, clipName, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-            if (clipGroupID < 0){
-                fprintf(stderr, "Failed to create group: %s\n", clipName);
-                success = false;
-                continue;
-            }
-            // write value
-            hid_t dataspaceID = H5Screate_simple(3, dims, NULL);
-            if (dataspaceID < 0){
-                fprintf(stderr, "Failed to create dataspace: %s\n", clipName);
-                H5Sclose(dataspaceID);
-                H5Gclose(clipGroupID);
-                success = false;
-                continue;
-            }
-            hid_t valueID = H5Dcreate(clipGroupID, "Value", H5T_NATIVE_FLOAT, dataspaceID, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-            if (valueID < 0){
-                fprintf(stderr, "Failed to create dataset: %s\n", clipName);
-                H5Dclose(valueID);
-                H5Sclose(dataspaceID);
-                H5Gclose(clipGroupID);
-                success = false;
-                continue;
-            }
-            herr_t status = H5Dwrite(valueID, H5T_IEEE_F32LE, H5S_ALL, H5S_ALL, H5P_DEFAULT, clipGrid->value);
-            if (status < 0){
-                fprintf(stderr, "Failed to write value\n");
-                success = false;
-            }
+        // write value
+        hid_t dataspaceID = H5Screate_simple(3, dims, NULL);
+        if (dataspaceID < 0){
+            fprintf(stderr, "Failed to create dataspace: %s\n", clipName);
+            H5Sclose(dataspaceID);
+            H5Gclose(clipGroupID);
+            success = false;
+            continue;
+        }
+        hid_t valueID = H5Dcreate(clipGroupID, "Value", H5T_NATIVE_FLOAT, dataspaceID, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        if (valueID < 0){
+            fprintf(stderr, "Failed to create dataset: %s\n", clipName);
             H5Dclose(valueID);
             H5Sclose(dataspaceID);
-
-            // write attributes for value
-            hid_t clipAttriSpaceID = H5Screate(H5S_SCALAR);
-            if (clipAttriSpaceID < 0){
-                fprintf(stderr, "Failed to create dataspace: %s\n", clipName);
-                H5Sclose(clipAttriSpaceID);
-                H5Gclose(clipGroupID);
-                success = false;
-                continue;
-            }
-            hid_t minLatID = H5Acreate(clipGroupID, "Min_Latitude", H5T_NATIVE_FLOAT, clipAttriSpaceID, H5P_DEFAULT, H5P_DEFAULT);
-            if (minLatID < 0){
-                fprintf(stderr, "Failed to create dataset: %s\n", clipName);
-                success = false;
-            }else{
-                status = H5Awrite(minLatID, H5T_NATIVE_FLOAT, &clipGrid->minLatitude);
-                if (status < 0){
-                    fprintf(stderr, "Failed to write dataset: %s\n", "minLatitude");
-                    success = false;
-                }
-                H5Aclose(minLatID);
-            }
-
-            hid_t maxLatID = H5Acreate(clipGroupID, "Max_Latitude", H5T_NATIVE_FLOAT, clipAttriSpaceID, H5P_DEFAULT, H5P_DEFAULT);
-            if (maxLatID < 0){
-                fprintf(stderr, "Failed to create dataset: %s\n", clipName);
-                success = false;
-            }else{
-                status = H5Awrite(maxLatID, H5T_NATIVE_FLOAT, &clipGrid->maxLatitude);
-                if (status < 0){
-                    fprintf(stderr, "Failed to write dataset: %s\n", "maxLatitude");
-                    success = false;
-                }
-                H5Aclose(maxLatID);
-            }
-
-            hid_t minLongID = H5Acreate(clipGroupID, "Min_Longitude", H5T_NATIVE_FLOAT, clipAttriSpaceID, H5P_DEFAULT, H5P_DEFAULT);
-            if (minLongID < 0){
-                fprintf(stderr, "Failed to create dataset: %s\n", clipName);
-                success = false;
-            }else{
-                status = H5Awrite(minLongID, H5T_NATIVE_FLOAT, &clipGrid->minLongitude);
-                if (status < 0){
-                    fprintf(stderr, "Failed to write dataset: %s\n", "minLongitude");
-                    success = false;
-                }
-                H5Aclose(minLongID);
-            }
-            
-            hid_t maxLongID = H5Acreate(clipGroupID, "Max_Longitude", H5T_NATIVE_FLOAT, clipAttriSpaceID, H5P_DEFAULT, H5P_DEFAULT);
-            if (maxLongID < 0){
-                fprintf(stderr, "Failed to create dataset: %s\n", clipName);
-                success = false;
-            }else{
-                status = H5Awrite(maxLongID, H5T_NATIVE_FLOAT, &clipGrid->maxLongitude);
-                if (status < 0){
-                    fprintf(stderr, "Failed to write dataset: %s\n", "maxLongitude");
-                    success = false;
-                }
-                H5Aclose(maxLongID);
-            }
-
-            hid_t minHeightID = H5Acreate(clipGroupID, "Min_Height", H5T_NATIVE_FLOAT, clipAttriSpaceID, H5P_DEFAULT, H5P_DEFAULT);
-            if (minHeightID < 0){
-                fprintf(stderr, "Failed to create dataset: %s\n", clipName);
-                success = false;
-            }else{
-                status = H5Awrite(minHeightID, H5T_NATIVE_FLOAT, &clipGrid->minHeight);
-                if (status < 0){
-                    fprintf(stderr, "Failed to write dataset: %s\n", "minHeight");
-                    success = false;
-                }
-                H5Aclose(minHeightID);
-            }
-
-            hid_t latitudeGapID = H5Acreate(clipGroupID, "Latitude_Gap", H5T_NATIVE_FLOAT, clipAttriSpaceID, H5P_DEFAULT, H5P_DEFAULT);
-            if (latitudeGapID < 0){
-                fprintf(stderr, "Failed to create dataset: %s\n", clipName);
-                success = false;
-            }else{
-                status = H5Awrite(latitudeGapID, H5T_NATIVE_FLOAT, &clipGrid->latitudeGap);
-                if (status < 0){
-                    fprintf(stderr, "Failed to write dataset: %s\n", "latitudeGap");
-                    success = false;
-                }
-                H5Aclose(latitudeGapID);
-            }
-
-            hid_t longitudeGapID = H5Acreate(clipGroupID, "Longitude_Gap", H5T_NATIVE_FLOAT, clipAttriSpaceID, H5P_DEFAULT, H5P_DEFAULT);
-            if (longitudeGapID < 0){
-                fprintf(stderr, "Failed to create dataset: %s\n", clipName);
-                success = false;
-            }else{
-                status = H5Awrite(longitudeGapID, H5T_NATIVE_FLOAT, &clipGrid->longitudeGap);
-                if (status < 0){
-                    fprintf(stderr, "Failed to write dataset: %s\n", "longitudeGap");
-                    success = false;
-                }
-                H5Aclose(longitudeGapID);
-            }
-
-            hid_t heightGapID = H5Acreate(clipGroupID, "Height_Gap", H5T_NATIVE_FLOAT, clipAttriSpaceID, H5P_DEFAULT, H5P_DEFAULT);
-            if (heightGapID < 0){
-                fprintf(stderr, "Failed to create dataset: %s\n", clipName);
-                success = false;
-            }else{
-                status = H5Awrite(heightGapID, H5T_NATIVE_FLOAT, &clipGrid->heightGap);
-                if (status < 0){
-                    fprintf(stderr, "Failed to write dataset: %s\n", "heightGap");
-                    success = false;
-                }
-                H5Aclose(heightGapID);
-            }            
-            H5Sclose(clipAttriSpaceID);
-
             H5Gclose(clipGroupID);
+            success = false;
+            continue;
         }
-        H5Gclose(bandGroupID);
-    }
+        herr_t status = H5Dwrite(valueID, H5T_IEEE_F32LE, H5S_ALL, H5S_ALL, H5P_DEFAULT, clipGrid->value);
+        if (status < 0){
+            fprintf(stderr, "Failed to write value\n");
+            success = false;
+        }
+        H5Dclose(valueID);
+        H5Sclose(dataspaceID);
 
-    if (!WriteGlobalAttribute(fileID, &clipResult->globalAttribute)){
+        // write attributes for value
+        hid_t clipAttriSpaceID = H5Screate(H5S_SCALAR);
+        if (clipAttriSpaceID < 0){
+            fprintf(stderr, "Failed to create dataspace: %s\n", clipName);
+            H5Sclose(clipAttriSpaceID);
+            H5Gclose(clipGroupID);
+            success = false;
+            continue;
+        }
+        hid_t minLatID = H5Acreate(clipGroupID, "Min_Latitude", H5T_NATIVE_FLOAT, clipAttriSpaceID, H5P_DEFAULT, H5P_DEFAULT);
+        if (minLatID < 0){
+            fprintf(stderr, "Failed to create dataset: %s\n", clipName);
+            success = false;
+        }else{
+            status = H5Awrite(minLatID, H5T_NATIVE_FLOAT, &clipGrid->minLatitude);
+            if (status < 0){
+                fprintf(stderr, "Failed to write dataset: %s\n", "minLatitude");
+                success = false;
+            }
+            H5Aclose(minLatID);
+        }
+
+        hid_t maxLatID = H5Acreate(clipGroupID, "Max_Latitude", H5T_NATIVE_FLOAT, clipAttriSpaceID, H5P_DEFAULT, H5P_DEFAULT);
+        if (maxLatID < 0){
+            fprintf(stderr, "Failed to create dataset: %s\n", clipName);
+            success = false;
+        }else{
+            status = H5Awrite(maxLatID, H5T_NATIVE_FLOAT, &clipGrid->maxLatitude);
+            if (status < 0){
+                fprintf(stderr, "Failed to write dataset: %s\n", "maxLatitude");
+                success = false;
+            }
+            H5Aclose(maxLatID);
+        }
+
+        hid_t minLongID = H5Acreate(clipGroupID, "Min_Longitude", H5T_NATIVE_FLOAT, clipAttriSpaceID, H5P_DEFAULT, H5P_DEFAULT);
+        if (minLongID < 0){
+            fprintf(stderr, "Failed to create dataset: %s\n", clipName);
+            success = false;
+        }else{
+            status = H5Awrite(minLongID, H5T_NATIVE_FLOAT, &clipGrid->minLongitude);
+            if (status < 0){
+                fprintf(stderr, "Failed to write dataset: %s\n", "minLongitude");
+                success = false;
+            }
+            H5Aclose(minLongID);
+        }
+        
+        hid_t maxLongID = H5Acreate(clipGroupID, "Max_Longitude", H5T_NATIVE_FLOAT, clipAttriSpaceID, H5P_DEFAULT, H5P_DEFAULT);
+        if (maxLongID < 0){
+            fprintf(stderr, "Failed to create dataset: %s\n", clipName);
+            success = false;
+        }else{
+            status = H5Awrite(maxLongID, H5T_NATIVE_FLOAT, &clipGrid->maxLongitude);
+            if (status < 0){
+                fprintf(stderr, "Failed to write dataset: %s\n", "maxLongitude");
+                success = false;
+            }
+            H5Aclose(maxLongID);
+        }
+
+        hid_t minHeightID = H5Acreate(clipGroupID, "Min_Height", H5T_NATIVE_FLOAT, clipAttriSpaceID, H5P_DEFAULT, H5P_DEFAULT);
+        if (minHeightID < 0){
+            fprintf(stderr, "Failed to create dataset: %s\n", clipName);
+            success = false;
+        }else{
+            status = H5Awrite(minHeightID, H5T_NATIVE_FLOAT, &clipGrid->minHeight);
+            if (status < 0){
+                fprintf(stderr, "Failed to write dataset: %s\n", "minHeight");
+                success = false;
+            }
+            H5Aclose(minHeightID);
+        }
+
+        hid_t latitudeGapID = H5Acreate(clipGroupID, "Latitude_Gap", H5T_NATIVE_FLOAT, clipAttriSpaceID, H5P_DEFAULT, H5P_DEFAULT);
+        if (latitudeGapID < 0){
+            fprintf(stderr, "Failed to create dataset: %s\n", clipName);
+            success = false;
+        }else{
+            status = H5Awrite(latitudeGapID, H5T_NATIVE_FLOAT, &clipGrid->latitudeGap);
+            if (status < 0){
+                fprintf(stderr, "Failed to write dataset: %s\n", "latitudeGap");
+                success = false;
+            }
+            H5Aclose(latitudeGapID);
+        }
+
+        hid_t longitudeGapID = H5Acreate(clipGroupID, "Longitude_Gap", H5T_NATIVE_FLOAT, clipAttriSpaceID, H5P_DEFAULT, H5P_DEFAULT);
+        if (longitudeGapID < 0){
+            fprintf(stderr, "Failed to create dataset: %s\n", clipName);
+            success = false;
+        }else{
+            status = H5Awrite(longitudeGapID, H5T_NATIVE_FLOAT, &clipGrid->longitudeGap);
+            if (status < 0){
+                fprintf(stderr, "Failed to write dataset: %s\n", "longitudeGap");
+                success = false;
+            }
+            H5Aclose(longitudeGapID);
+        }
+
+        hid_t heightGapID = H5Acreate(clipGroupID, "Height_Gap", H5T_NATIVE_FLOAT, clipAttriSpaceID, H5P_DEFAULT, H5P_DEFAULT);
+        if (heightGapID < 0){
+            fprintf(stderr, "Failed to create dataset: %s\n", clipName);
+            success = false;
+        }else{
+            status = H5Awrite(heightGapID, H5T_NATIVE_FLOAT, &clipGrid->heightGap);
+            if (status < 0){
+                fprintf(stderr, "Failed to write dataset: %s\n", "heightGap");
+                success = false;
+            }
+            H5Aclose(heightGapID);
+        }            
+        H5Sclose(clipAttriSpaceID);
+
+        H5Gclose(clipGroupID);
+    }
+    H5Gclose(bandGroupID);
+
+    if (bandIndex == 0 && !WriteGlobalAttribute(fileID, &clipResult->globalAttribute)){
         fprintf(stderr, "Failed to write global attribute\n");
         success = false;
     }

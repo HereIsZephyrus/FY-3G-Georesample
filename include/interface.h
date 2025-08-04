@@ -16,7 +16,7 @@ typedef struct {
 
 bool InitBatchReadContext(BatchReadContext* ctx, hsize_t batchSize);
 void DestroyBatchReadContext(BatchReadContext* ctx);
-bool ReadHDF5(const char* filename, HDFDataset* dataset);
+bool ReadHDF5(const unsigned int bandIndex, const char* filename, HDFDataset* dataset);
 bool ReadSingleAttribute(hid_t fileID, const char* attributeName, hid_t typeID, void* buffer);
 bool ReadGlobalAttribute(hid_t fileID, HDFGlobalAttribute* globalAttribute);
 hid_t GetDatasetID(hid_t fileID, const char* path);
@@ -25,8 +25,8 @@ bool ReadBand(hid_t fileID, const char* bandName, HDFGlobalAttribute* globalAttr
 bool ReadSingleScanLine(int lineIndex, const HDFBandRequired* required, GridInfo* infoLine);
 bool ReadSingleDataset(int rank, hid_t datasetID, hsize_t* offset, hsize_t* count, void* buffer);
 char* ConstructPath(const char* pathNames[], const int pathLength);
-bool WriteTotalGeodetic(const char* filename, const GeodeticGrid* finalGrid, const HDFGlobalAttribute* globalAttribute);
-bool WriteClipResult(const char* filename, const ClipGridResult* clipResult);
+bool WriteTotalGeodetic(const unsigned int bandIndex, const char* filename, const GeodeticGrid* finalGrid, const HDFGlobalAttribute* globalAttribute);
+bool WriteClipResult(const unsigned int bandIndex, const char* filename, const ClipGridResult* clipResult);
 bool WriteGlobalAttribute(hid_t fileID, const HDFGlobalAttribute* globalAttribute);
 bool ReadBatchScanLines(hsize_t startLine, hsize_t batchSize, const HDFBandRequired* required, BatchReadContext* ctx, GridInfo** infoArray);
 bool ReadBatchDataset(hid_t datasetID, int rank, int dim3, hsize_t startLine, hsize_t batchSize, hid_t memspaceID, void* buffer);

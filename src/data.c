@@ -14,30 +14,26 @@ void DestroyGridInfo(GridInfo* info) {
 
 void DestroyHDFDataset(HDFDataset* dataset){
     if (!dataset) return;
-    for (int bandIndex = 0; bandIndex < 2; bandIndex++){
-        for (unsigned int lineIndex = 0; lineIndex < dataset->globalAttribute.scanLineCount; lineIndex++){
-            for (int angleIndex = 0; angleIndex < SCAN_ANGLE_COUNT; angleIndex++)
-                DestroyGridInfo(&dataset->infoArray[bandIndex][lineIndex][angleIndex]);
-            free(dataset->infoArray[bandIndex][lineIndex]);
-        }
-        free(dataset->infoArray[bandIndex]);
+    for (unsigned int lineIndex = 0; lineIndex < dataset->globalAttribute.scanLineCount; lineIndex++){
+        for (int angleIndex = 0; angleIndex < SCAN_ANGLE_COUNT; angleIndex++)
+            DestroyGridInfo(&dataset->infoArray[lineIndex][angleIndex]);
+        free(dataset->infoArray[lineIndex]);
     }
+    free(dataset->infoArray);
 }
 
 void DestroyGeodeticGrid(GeodeticGrid* finalGrid){
     if (!finalGrid) return;
-    for (int bandIndex = 0; bandIndex < 2; bandIndex++){
-        if (finalGrid->latitudeArray[bandIndex])
-            free(finalGrid->latitudeArray[bandIndex]);
-        if (finalGrid->longitudeArray[bandIndex])
-            free(finalGrid->longitudeArray[bandIndex]);
-        if (finalGrid->elevationArray[bandIndex])
-            free(finalGrid->elevationArray[bandIndex]);
-        if (finalGrid->valueArray[bandIndex])
-            free(finalGrid->valueArray[bandIndex]);
-        if (finalGrid->validArray[bandIndex])
-            free(finalGrid->validArray[bandIndex]);
-    }
+    if (finalGrid->latitudeArray)
+        free(finalGrid->latitudeArray);
+    if (finalGrid->longitudeArray)
+        free(finalGrid->longitudeArray);
+    if (finalGrid->elevationArray)
+        free(finalGrid->elevationArray);
+    if (finalGrid->valueArray)
+        free(finalGrid->valueArray);
+    if (finalGrid->validArray)
+        free(finalGrid->validArray);
 }
 
 int getNumber(const char* str, int length){
@@ -76,30 +72,24 @@ bool InitGeodeticGrid(GeodeticGrid* finalGrid, const int lineCount, const int he
     finalGrid->heightCount = heightCount;
     const int dims[3] = {finalGrid->lineCount, SCAN_ANGLE_COUNT, finalGrid->heightCount};
     const int memSize = dims[0] * dims[1] * dims[2] * sizeof(float);
-    for (int bandIndex = 0; bandIndex < 2; bandIndex++){
-        finalGrid->latitudeArray[bandIndex] = (float*)malloc(memSize);
-        finalGrid->longitudeArray[bandIndex] = (float*)malloc(memSize);
-        finalGrid->elevationArray[bandIndex] = (float*)malloc(memSize);
-        finalGrid->valueArray[bandIndex] = (float*)malloc(memSize);
-        finalGrid->validArray[bandIndex] = (bool*)malloc(memSize);
-        if (!finalGrid->latitudeArray[bandIndex] || !finalGrid->longitudeArray[bandIndex] || !finalGrid->elevationArray[bandIndex] || !finalGrid->valueArray[bandIndex] || !finalGrid->validArray[bandIndex]){
-            fprintf(stderr, "Failed to allocate memory for latitudeArray, longitudeArray, elevationArray or valueArray\n");
-            return false;
-        }
-        memset(finalGrid->validArray[bandIndex], true, memSize);
+    finalGrid->latitudeArray = (float*)malloc(memSize);
+    finalGrid->longitudeArray = (float*)malloc(memSize);
+    finalGrid->elevationArray = (float*)malloc(memSize);
+    finalGrid->valueArray = (float*)malloc(memSize);
+    finalGrid->validArray = (bool*)malloc(memSize);
+    if (!finalGrid->latitudeArray || !finalGrid->longitudeArray || !finalGrid->elevationArray || !finalGrid->valueArray || !finalGrid->validArray){
+        fprintf(stderr, "Failed to allocate memory for latitudeArray, longitudeArray, elevationArray or valueArray\n");
+        return false;
     }
+    memset(finalGrid->validArray, true, memSize);
     return true;
 }
 
 void DestroyClipGridResult(ClipGridResult* clipGridResult){
     if (!clipGridResult) return;
-    for (int bandIndex = 0; bandIndex < 2; bandIndex++){
-        if (clipGridResult->clipGrids[bandIndex]){
-            for (unsigned int clipIndex = 0; clipIndex < clipGridResult->clipCount; clipIndex++)
-                if (clipGridResult->clipGrids[bandIndex][clipIndex].value)
-                    free(clipGridResult->clipGrids[bandIndex][clipIndex].value);
-            if (clipGridResult->clipGrids[bandIndex])
-                free(clipGridResult->clipGrids[bandIndex]);
-        }
-    }
+    for (unsigned int clipIndex = 0; clipIndex < clipGridResult->clipCount; clipIndex++)
+        if (clipGridResult->clipGrids[clipIndex].value)
+            free(clipGridResult->clipGrids[clipIndex].value);
+    if (clipGridResult->clipGrids)
+        free(clipGridResult->clipGrids);
 }
