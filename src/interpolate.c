@@ -185,7 +185,6 @@ bool InitClipGridArray(const HDFDataset* dataset, int gridSize, int initHeight, 
             minClipLongitude = QueryBoundingBox(clipGrid, dataset->infoArray[bandIndex], lineCount);
             clipGrid->longitudeCount = ceil((clipGrid->maxLongitude - clipGrid->minLongitude) / clipGrid->longitudeGap);
             clipGrid->value = (float*)malloc(clipGrid->latitudeCount * clipGrid->longitudeCount * clipGrid->heightCount * sizeof(float));
-            printf("max longitude: %f, next min longitude: %f\n", clipGrid->maxLongitude, minClipLongitude);
         }
     }
     return true;

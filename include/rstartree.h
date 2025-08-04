@@ -18,8 +18,6 @@ typedef struct {
 typedef struct {
     float x, y, z, h;
     int64_t id;
-    void* userData;
-    size_t userDataSize;
 } RStarPoint;
 
 typedef struct {
@@ -53,7 +51,7 @@ void FillQueryPointCoordinates(const RStarPoint* points, unsigned int count, Spa
 void RStarIndex_Flush(RStarIndex* index);
 void RStarIndex_ClearBuffer(RStarIndex* index);
 
-RStarPoint* CreateRStarPoint(float x, float y, float z, int64_t id, const void* userData, size_t userDataSize);
+RStarPoint* CreateRStarPoint(float x, float y, float z, int64_t id);
 void DestroyRStarPoint(RStarPoint* point);
 SpatialQueryResult* CreateSpatialQueryResult();
 void DestroySpatialQueryResult(SpatialQueryResult* result);

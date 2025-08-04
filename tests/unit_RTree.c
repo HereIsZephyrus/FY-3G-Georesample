@@ -13,17 +13,17 @@ void test_rstar3d_basic_functionality(void) {
     TEST_ASSERT_NOT_NULL(index);
     TEST_ASSERT_TRUE(IsRStarIndexValid(index));
     
-    RStarPoint* point1 = CreateRStarPoint(1.0, 2.0, 3.0, 1, NULL, 0);
+    RStarPoint* point1 = CreateRStarPoint(1.0, 2.0, 3.0, 1);
     TEST_ASSERT_NOT_NULL(point1);
     bool result1 = RStarIndex_InsertPoint(index, point1);
     TEST_ASSERT_TRUE(result1);
     
-    RStarPoint* point2 = CreateRStarPoint(4.0, 4.9, 4.9, 2, NULL, 0);
+    RStarPoint* point2 = CreateRStarPoint(4.0, 4.9, 4.9, 2);
     TEST_ASSERT_NOT_NULL(point2);
     bool result2 = RStarIndex_InsertPoint(index, point2);
     TEST_ASSERT_TRUE(result2);
     
-    RStarPoint* point3 = CreateRStarPoint(7.0, 8.0, 9.0, 3, NULL, 0);
+    RStarPoint* point3 = CreateRStarPoint(7.0, 8.0, 9.0, 3);
     TEST_ASSERT_NOT_NULL(point3);
     bool result3 = RStarIndex_InsertPoint(index, point3);
     TEST_ASSERT_TRUE(result3);
@@ -59,7 +59,7 @@ void test_rstar3d_nearest_neighbor(void) {
     
     RStarPoint* rstarPoints[4];
     for (int i = 0; i < 4; i++) {
-        rstarPoints[i] = CreateRStarPoint(points[i][0], points[i][1], points[i][2], i + 1, NULL, 0);
+        rstarPoints[i] = CreateRStarPoint(points[i][0], points[i][1], points[i][2], i + 1);
         TEST_ASSERT_NOT_NULL(rstarPoints[i]);
         bool result = RStarIndex_InsertPoint(index, rstarPoints[i]);
         TEST_ASSERT_TRUE(result);
@@ -104,7 +104,7 @@ void test_rstar3d_large_scale_insertion(void) {
         float lon = (float)(rand() % 1000) / 10.0f;
         float height = (float)(rand() % 500) / 10.0f;
         
-        points[i] = CreateRStarPoint(lat, lon, height, i + 1, NULL, 0);
+        points[i] = CreateRStarPoint(lat, lon, height, i + 1);
         TEST_ASSERT_NOT_NULL(points[i]);
         
         bool result = RStarIndex_InsertPoint(index, points[i]);
@@ -149,7 +149,7 @@ void test_rstar3d_complex_spatial_queries(void) {
             float lon = centerLon + ((float)(rand() % 100) / 50.0f - 1.0f) * 5.0f;
             float height = centerHeight + ((float)(rand() % 100) / 50.0f - 1.0f) * 2.0f;
             
-            points[(cluster * POINTS_PER_CLUSTER) + i] = CreateRStarPoint(lat, lon, height, pointId++, NULL, 0);
+            points[(cluster * POINTS_PER_CLUSTER) + i] = CreateRStarPoint(lat, lon, height, pointId++);
             bool result = RStarIndex_InsertPoint(index, points[(cluster * POINTS_PER_CLUSTER) + i]);
             TEST_ASSERT_TRUE(result);
         }
@@ -210,7 +210,7 @@ void test_rstar3d_mixed_operations_stress(void) {
             float lon = (float)(rand() % 2000) / 20.0f;
             float height = (float)(rand() % 1000) / 20.0f;
             
-            points[insertedPoints] = CreateRStarPoint(lat, lon, height, insertedPoints + 1, NULL, 0);
+            points[insertedPoints] = CreateRStarPoint(lat, lon, height, insertedPoints + 1);
             bool result = RStarIndex_InsertPoint(index, points[insertedPoints]);
             TEST_ASSERT_TRUE(result);
             insertedPoints++;
@@ -268,7 +268,7 @@ void test_rstar3d_nearest_neighbor_advanced(void) {
                 float lon = y * SPACING;
                 float height = z * SPACING;
                 
-                gridPoints[pointCount] = CreateRStarPoint(lat, lon, height, pointCount + 1, NULL, 0);
+                gridPoints[pointCount] = CreateRStarPoint(lat, lon, height, pointCount + 1);
                 bool result = RStarIndex_InsertPoint(index, gridPoints[pointCount]);
                 TEST_ASSERT_TRUE(result);
                 pointCount++;
@@ -302,15 +302,15 @@ void test_rstar3d_boundary_conditions(void) {
     RStarIndex* index = CreateRStarIndex(100, 0.5);
     TEST_ASSERT_NOT_NULL(index);
     
-    RStarPoint* minPoint = CreateRStarPoint(-1000.0, -1000.0, -1000.0, 1, NULL, 0);
-    RStarPoint* maxPoint = CreateRStarPoint(1000.0, 1000.0, 1000.0, 2, NULL, 0);
-    RStarPoint* zeroPoint = CreateRStarPoint(0.0, 0.0, 0.0, 3, NULL, 0);
+    RStarPoint* minPoint = CreateRStarPoint(-1000.0, -1000.0, -1000.0, 1);
+    RStarPoint* maxPoint = CreateRStarPoint(1000.0, 1000.0, 1000.0, 2);
+    RStarPoint* zeroPoint = CreateRStarPoint(0.0, 0.0, 0.0, 3);
     
     TEST_ASSERT_TRUE(RStarIndex_InsertPoint(index, minPoint));
     TEST_ASSERT_TRUE(RStarIndex_InsertPoint(index, maxPoint));
     TEST_ASSERT_TRUE(RStarIndex_InsertPoint(index, zeroPoint));
     
-    RStarPoint* duplicatePoint = CreateRStarPoint(0.0, 0.0, 0.0, 4, NULL, 0);
+    RStarPoint* duplicatePoint = CreateRStarPoint(0.0, 0.0, 0.0, 4);
     TEST_ASSERT_TRUE(RStarIndex_InsertPoint(index, duplicatePoint));
     
     double emptyQuery[3] = {500.0, 500.0, 500.0};

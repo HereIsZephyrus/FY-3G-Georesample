@@ -7,7 +7,7 @@ typedef struct KDNode{
     float latitude, longitude;
     int64_t id;
     struct KDNode *left, *right;
-    int split_dim; // 0 for latitude, 1 for longitude
+    int splitDim; // 0 for latitude, 1 for longitude
 } KDNode;
 
 typedef struct KDTree{
@@ -18,12 +18,9 @@ typedef struct KDTree{
 
 typedef struct{
     float latitude, longitude;
-    double lat_sum, lon_sum;
-    double lat_square_sum, lon_square_sum;
     int64_t id;
 } KDCalcPoint;
 
-int SelectSplitDimension(KDCalcPoint* points, int count);
 KDNode* BuildKDTree(KDCalcPoint* points, int count, int depth);
 void DestroyKDTree(KDTree* tree);
 void DestroyKDNode(KDNode* node);

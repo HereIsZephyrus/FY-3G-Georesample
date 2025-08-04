@@ -40,7 +40,7 @@ void CalculateGridData(const GridInfo* sampleGridInfo, GeodeticGrid* geodeticGri
             geodeticGrid->validArray[bandIndex][index] = false;
         }
         if (geodeticGrid->valueArray[bandIndex][index] > -999 && IsValidHeightData(coordinate.h, sampleGridInfo->evaluation, heightIndex ,sampleGridInfo->clutterFreeBottomIndex)){
-            pointBatch->points[bandIndex][index] = *CreateRStarPoint(coordinate.x, coordinate.y, coordinate.z, index, NULL, 0);  
+            pointBatch->points[bandIndex][index] = *CreateRStarPoint(coordinate.x, coordinate.y, coordinate.z, index);  
             pointBatch->points[bandIndex][index].h = coordinate.h;
         }
         else{

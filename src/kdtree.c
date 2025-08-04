@@ -20,17 +20,10 @@ static int compare_by_longitude(const void* a, const void* b) {
     return 0;
 }
 
-int SelectSplitDimension(KDCalcPoint* points, int count) {
-    if (count <= 1) return 0;
-    const double lat_variance = (points[count - 1].lat_square_sum - points[0].lat_square_sum) / count - (points[count - 1].lat_sum - points[0].lat_sum) * (points[count - 1].lat_sum - points[0].lat_sum) / count / count;
-    const double lon_variance = (points[count - 1].lon_square_sum - points[0].lon_square_sum) / count - (points[count - 1].lon_sum - points[0].lon_sum) * (points[count - 1].lon_sum - points[0].lon_sum) / count / count;
-    return (lat_variance > lon_variance) ? 0 : 1;
-}
-
 KDNode* BuildKDTree(KDCalcPoint* points, int count, int depth) {
     if (count <= 0) return NULL;
-    int split_dim = SelectSplitDimension(points, count);
-    if (split_dim == 0)
+    int splitDim = (depth & 1);
+    if (splitDim == 0)
         qsort(points, count, sizeof(KDCalcPoint), compare_by_latitude);
     else
         qsort(points, count, sizeof(KDCalcPoint), compare_by_longitude);
@@ -41,7 +34,7 @@ KDNode* BuildKDTree(KDCalcPoint* points, int count, int depth) {
     node->latitude = points[median].latitude;
     node->longitude = points[median].longitude;
     node->id = points[median].id;
-    node->split_dim = split_dim;
+    node->splitDim = splitDim;
     node->left = BuildKDTree(points, median, depth + 1);
     node->right = BuildKDTree(points + median + 1, count - median - 1, depth + 1);
     return node;
@@ -68,12 +61,12 @@ KDNode* InsertKDNode(KDNode* node, float latitude, float longitude, int64_t id, 
         new_node->latitude = latitude;
         new_node->longitude = longitude;
         new_node->id = id;
-        new_node->split_dim = depth % 2;
+        new_node->splitDim = depth % 2;
         new_node->left = new_node->right = NULL;
         return new_node;
     }
     
-    if (node->split_dim == 0) { // split with latitude
+    if (node->splitDim == 0) { // split with latitude
         if (latitude < node->latitude)
             node->left = InsertKDNode(node->left, latitude, longitude, id, depth + 1);
         else
@@ -109,7 +102,7 @@ double KDTreeSearchNodeWithinDistance(const KDNode* node, float queryLat, float 
     KDNode* firstSubtree, *secondSubtree;
     double splitDist = INFINITY;
     
-    if (node->split_dim == 0) { // split with latitude
+    if (node->splitDim == 0) { // split with latitude
         splitDist = queryLat - node->latitude;
         if (queryLat < node->latitude) {
             firstSubtree = node->left;

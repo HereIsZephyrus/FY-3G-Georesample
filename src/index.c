@@ -345,16 +345,6 @@ void InsertKDCalcPoint(KDCalcPointClip* clip, const float latitude, const float 
     clip->points[clip->count].latitude = latitude;
     clip->points[clip->count].longitude = longitude;
     clip->points[clip->count].id = index;
-    clip->points[clip->count].lat_sum = latitude;
-    clip->points[clip->count].lon_sum = longitude;
-    clip->points[clip->count].lat_square_sum = latitude * latitude;
-    clip->points[clip->count].lon_square_sum = longitude * longitude;
-    if (clip->count > 0){
-        clip->points[clip->count].lat_sum += clip->points[clip->count - 1].lat_sum;
-        clip->points[clip->count].lon_sum += clip->points[clip->count - 1].lon_sum;
-        clip->points[clip->count].lat_square_sum += clip->points[clip->count - 1].lat_square_sum;
-        clip->points[clip->count].lon_square_sum += clip->points[clip->count - 1].lon_square_sum;
-    }
     clip->count++;
 }
 

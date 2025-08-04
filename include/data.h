@@ -11,7 +11,6 @@ typedef struct {
     float groundL, groundB, groundH;
     float airL, airB, zeta;
     float evaluation, clutterFreeBottomIndex;
-    unsigned int lineIndex, angleIndex;
     float *heightArray, *measuredArray;
 } GridInfo;
 
