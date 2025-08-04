@@ -26,14 +26,14 @@ typedef struct {
 
 extern const char* BAND_NAMES[2];
 typedef struct {    
-    GridInfo** infoArray[2];
+    GridInfo** infoArray;
     HDFGlobalAttribute globalAttribute;
 } HDFDataset;
 
 typedef struct {
     unsigned int lineCount, heightCount;
-    float *latitudeArray[2], *longitudeArray[2], *elevationArray[2], *valueArray[2]; // [bandIndex][[lineCount][angleCount][heightCount]]
-    bool *validArray[2]; // [bandIndex][[lineCount][angleCount][heightCount]]
+    float *latitudeArray, *longitudeArray, *elevationArray, *valueArray; // [lineCount][angleCount][heightCount]
+    bool *validArray; // [lineCount][angleCount][heightCount]
 } GeodeticGrid;
 
 typedef struct {
@@ -46,7 +46,7 @@ typedef struct {
 
 typedef struct{
     unsigned int clipCount;
-    ClipGrid* clipGrids[2];
+    ClipGrid* clipGrids;
     HDFGlobalAttribute globalAttribute;
 } ClipGridResult;
 

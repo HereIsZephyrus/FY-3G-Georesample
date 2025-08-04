@@ -162,30 +162,28 @@ bool InitClipGridArray(const HDFDataset* dataset, int gridSize, int initHeight, 
     finalGrid->globalAttribute = dataset->globalAttribute;
     const unsigned int lineCount = finalGrid->globalAttribute.scanLineCount;
     const float latitudeGap = (float)gridSize * 180.0f / (M_PI * WGS84_B);
-    for (int bandIndex = 0; bandIndex < 2; bandIndex++){
-        float globalMaxLatitude, globalMinLatitude, globalMaxLongitude, globalMinLongitude; // longitude is wrapped
-        GetGeodeticRange(dataset->infoArray[bandIndex], lineCount, &globalMaxLatitude, &globalMinLatitude, &globalMaxLongitude, &globalMinLongitude);
-        finalGrid->clipCount = ceil((globalMaxLatitude - globalMinLatitude) / DEFAULT_MAX_LONGITUDE_WIDTH);
-        finalGrid->clipGrids[bandIndex] = (ClipGrid*)malloc(finalGrid->clipCount * sizeof(ClipGrid));
-        const float realClipLatitudeGap = (globalMaxLatitude - globalMinLatitude) / finalGrid->clipCount;
-        const float realClipLatitudeCount = ceil(realClipLatitudeGap / latitudeGap);
-        float minClipLongitude = globalMinLongitude;
-        for (unsigned int clipIndex = 0; clipIndex < finalGrid->clipCount; clipIndex++){
-            ClipGrid* clipGrid = &finalGrid->clipGrids[bandIndex][clipIndex];
-            clipGrid->minHeight = initHeight;
-            clipGrid->heightGap = heightGap;
-            clipGrid->heightCount = heightCount;
-            clipGrid->minLatitude = globalMinLatitude + clipIndex * realClipLatitudeGap;
-            clipGrid->maxLatitude = clipGrid->minLatitude + realClipLatitudeGap;
-            clipGrid->latitudeGap = latitudeGap;
-            clipGrid->latitudeCount = realClipLatitudeCount;
-            clipGrid->minLongitude = minClipLongitude;
-            const float centerClipLatitude = (clipGrid->minLatitude + clipGrid->maxLatitude) / 2;
-            clipGrid->longitudeGap = (float)gridSize * 180.0f / (M_PI * WGS84_A * cos(ToRadians(centerClipLatitude)));
-            minClipLongitude = QueryBoundingBox(clipGrid, dataset->infoArray[bandIndex], lineCount);
-            clipGrid->longitudeCount = ceil((clipGrid->maxLongitude - clipGrid->minLongitude) / clipGrid->longitudeGap);
-            clipGrid->value = (float*)malloc(clipGrid->latitudeCount * clipGrid->longitudeCount * clipGrid->heightCount * sizeof(float));
-        }
+    float globalMaxLatitude, globalMinLatitude, globalMaxLongitude, globalMinLongitude; // longitude is wrapped
+    GetGeodeticRange(dataset->infoArray, lineCount, &globalMaxLatitude, &globalMinLatitude, &globalMaxLongitude, &globalMinLongitude);
+    finalGrid->clipCount = ceil((globalMaxLatitude - globalMinLatitude) / DEFAULT_MAX_LONGITUDE_WIDTH);
+    finalGrid->clipGrids = (ClipGrid*)malloc(finalGrid->clipCount * sizeof(ClipGrid));
+    const float realClipLatitudeGap = (globalMaxLatitude - globalMinLatitude) / finalGrid->clipCount;
+    const float realClipLatitudeCount = ceil(realClipLatitudeGap / latitudeGap);
+    float minClipLongitude = globalMinLongitude;
+    for (unsigned int clipIndex = 0; clipIndex < finalGrid->clipCount; clipIndex++){
+        ClipGrid* clipGrid = &finalGrid->clipGrids[clipIndex];
+        clipGrid->minHeight = initHeight;
+        clipGrid->heightGap = heightGap;
+        clipGrid->heightCount = heightCount;
+        clipGrid->minLatitude = globalMinLatitude + clipIndex * realClipLatitudeGap;
+        clipGrid->maxLatitude = clipGrid->minLatitude + realClipLatitudeGap;
+        clipGrid->latitudeGap = latitudeGap;
+        clipGrid->latitudeCount = realClipLatitudeCount;
+        clipGrid->minLongitude = minClipLongitude;
+        const float centerClipLatitude = (clipGrid->minLatitude + clipGrid->maxLatitude) / 2;
+        clipGrid->longitudeGap = (float)gridSize * 180.0f / (M_PI * WGS84_A * cos(ToRadians(centerClipLatitude)));
+        minClipLongitude = QueryBoundingBox(clipGrid, dataset->infoArray, lineCount);
+        clipGrid->longitudeCount = ceil((clipGrid->maxLongitude - clipGrid->minLongitude) / clipGrid->longitudeGap);
+        clipGrid->value = (float*)malloc(clipGrid->latitudeCount * clipGrid->longitudeCount * clipGrid->heightCount * sizeof(float));
     }
     return true;
 }

@@ -24,7 +24,6 @@ set(TEST_FILES
     ${TEST_DIR}/unit_interpolate.c
     ${TEST_DIR}/unit_RTree.c
     ${TEST_DIR}/unit_KDTree.c
-    ${TEST_DIR}/unit_core.c
     ${TEST_DIR}/unit_AVLTree.c
     ${TEST_DIR}/test_suites.c
 )

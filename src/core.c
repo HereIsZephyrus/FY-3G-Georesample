@@ -13,13 +13,12 @@ static bool IsValidHeightData(const float coordinateHeight, const float elevatio
     return true;
 }
 
-void CalculateGridData(const GridInfo* sampleGridInfo, GeodeticGrid* geodeticGrid, PointBatch* pointBatch, unsigned int bandIndex, unsigned int lineIndex, unsigned int angleIndex){
+void CalculateGridData(const GridInfo* sampleGridInfo, GeodeticGrid* geodeticGrid, PointBatch* pointBatch, unsigned int lineIndex, unsigned int angleIndex){
     /**
     @brief Calculate the interpolation
     @param sampleGridInfo: the sample grid info to calculate the interpolation
     @param geodeticGrid: the final grid to store the data
     @param pointBatch: the point batch to store the data
-    @param bandIndex: the band index
     @param lineIndex: the line index
     @param angleIndex: the angle index
     */
@@ -30,22 +29,22 @@ void CalculateGridData(const GridInfo* sampleGridInfo, GeodeticGrid* geodeticGri
     for (unsigned int heightIndex = 0; heightIndex < geodeticGrid->heightCount; heightIndex++){
         Coordinate coordinate = CalcCartesian(&interpolator, sampleGridInfo->heightArray[heightIndex]);
         const unsigned int index = lineIndex * SCAN_ANGLE_COUNT * geodeticGrid->heightCount + angleIndex * geodeticGrid->heightCount + heightIndex;
-        geodeticGrid->latitudeArray[bandIndex][index] = coordinate.l;
-        geodeticGrid->longitudeArray[bandIndex][index] = coordinate.b;
-        geodeticGrid->elevationArray[bandIndex][index] = coordinate.h;
+        geodeticGrid->latitudeArray[index] = coordinate.l;
+        geodeticGrid->longitudeArray[index] = coordinate.b;
+        geodeticGrid->elevationArray[index] = coordinate.h;
         if (sampleGridInfo->measuredArray[heightIndex] > 0 && sampleGridInfo->measuredArray[heightIndex] < 1000)
-            geodeticGrid->valueArray[bandIndex][index] = sampleGridInfo->measuredArray[heightIndex];
+            geodeticGrid->valueArray[index] = sampleGridInfo->measuredArray[heightIndex];
         else{
-            geodeticGrid->valueArray[bandIndex][index] = -999; // NaN data
-            geodeticGrid->validArray[bandIndex][index] = false;
+            geodeticGrid->valueArray[index] = -999; // NaN data
+            geodeticGrid->validArray[index] = false;
         }
-        if (geodeticGrid->valueArray[bandIndex][index] > -999 && IsValidHeightData(coordinate.h, sampleGridInfo->evaluation, heightIndex ,sampleGridInfo->clutterFreeBottomIndex)){
-            pointBatch->points[bandIndex][index] = *CreateRStarPoint(coordinate.x, coordinate.y, coordinate.z, index);  
-            pointBatch->points[bandIndex][index].h = coordinate.h;
+        if (geodeticGrid->valueArray[index] > -999 && IsValidHeightData(coordinate.h, sampleGridInfo->evaluation, heightIndex ,sampleGridInfo->clutterFreeBottomIndex)){
+            pointBatch->points[index] = *CreateRStarPoint(coordinate.x, coordinate.y, coordinate.z, index);  
+            pointBatch->points[index].h = coordinate.h;
         }
         else{
-            pointBatch->points[bandIndex][index].h = -1; // to sign the invalid height data
-            geodeticGrid->validArray[bandIndex][index] = false;
+            pointBatch->points[index].h = -1; // to sign the invalid height data
+            geodeticGrid->validArray[index] = false;
         }
     }
 }
@@ -63,13 +62,9 @@ bool ProcessDataset(const HDFDataset* dataset, GeodeticGrid* geodeticGrid, Point
         return false;
     }
     #pragma omp parallel for shared(dataset, geodeticGrid, pointBatch) collapse(2)
-    for (int bandIndex = 0; bandIndex < 2; bandIndex++){
-        for (unsigned int lineIndex = 0; lineIndex < geodeticGrid->lineCount; lineIndex++)
-            for (unsigned int angleIndex = 0; angleIndex < SCAN_ANGLE_COUNT; angleIndex++){
-                CalculateGridData( &dataset->infoArray[bandIndex][lineIndex][angleIndex], 
-                                        geodeticGrid, pointBatch, bandIndex, lineIndex, angleIndex);
-            }
-    }
+    for (unsigned int lineIndex = 0; lineIndex < geodeticGrid->lineCount; lineIndex++)
+        for (unsigned int angleIndex = 0; angleIndex < SCAN_ANGLE_COUNT; angleIndex++)
+            CalculateGridData(&dataset->infoArray[lineIndex][angleIndex], geodeticGrid, pointBatch, lineIndex, angleIndex);
     return true;
 }
 
@@ -242,15 +237,14 @@ bool InterpolateGrid(const GeodeticGrid* processedGrid, IndexForest* forest, Cli
     */
     bool success = true;
     unsigned int clipCount = finalGrid->clipCount;
-    #pragma omp parallel for shared(forest, processedGrid, finalGrid, clipCount) reduction(||:success) collapse(2) schedule(dynamic)
-    for (unsigned int bandIndex = 0; bandIndex < 2; bandIndex++)
-        for (unsigned int clipIndex = 0; clipIndex < clipCount; clipIndex++){
-            const unsigned int order = GetOrder(clipIndex, clipCount);
-            if (!InterpolateClipGridBatch(forest->index[bandIndex][order], forest->flatindex[bandIndex], processedGrid->valueArray[bandIndex], &finalGrid->clipGrids[bandIndex][order])){
-                fprintf(stderr, "Failed to interpolate clip grid for band %d, clip %d\n", bandIndex, order);
-                success = false;
-            }
+    #pragma omp parallel for shared(forest, processedGrid, finalGrid, clipCount) reduction(||:success) schedule(dynamic)
+    for (unsigned int clipIndex = 0; clipIndex < clipCount; clipIndex++){
+        const unsigned int order = GetOrder(clipIndex, clipCount);
+        if (!InterpolateClipGridBatch(forest->index[order], forest->flatindex, processedGrid->valueArray, &finalGrid->clipGrids[order])){
+            fprintf(stderr, "Failed to interpolate clip grid for clip %d\n", order);
+            success = false;
         }
+    }
     return success;
 }
 
